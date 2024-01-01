@@ -19,7 +19,8 @@ def integration_source_target(mimic_path, eicu_path):
     eicu  = pd.read_csv(eicu_path, compression='gzip', index_col = 0)
     # 잘못 표기한 컬럼 명 변경 및 삭제
 
-    mimic = mimic.rename(columns={'SaO2': 'O2 Sat (%)', 'SaO2_fillna':'O2 Sat (%)_fillna'})
+    mimic = mimic.rename(columns={'SaO2': 'O2 Sat (%)', 'SaO2_fillna':'O2 Sat (%)_fillna', 'Tropinin-T':'Troponin-T'})
+    eicu = eicu.rename(columns = {'Tropinin-T':'Troponin-T'})
     eicu = eicu.drop('SaO2', axis = 1)
     # 필요 없는 컬럼 날리기
 
