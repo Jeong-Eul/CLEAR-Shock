@@ -24,16 +24,27 @@ def return_result_df():
 
     mimic, eicu = integration_source_target(mimic_path, eicu_path)
 
+    print('---Complete Integration---')
+
     mimic_v1 = make_derived_variable(mimic, 'mimic')
+
+    print('---Complete make derived variable for MIMIC-IV---')
+
     eicu_v1 = make_derived_variable(eicu, 'eicu')
+
+    print('---Complete make derived variable for eICU---')
+
     return mimic_v1, eicu_v1
 
 
 def make_derived_variable(df, mode):
     dataset = df.copy()
     result_1 = Lactate_clearance(dataset, mode)
+    print('Complete Lactate Clearance')
     result_2 = cumsum_vasoactive(result_1, mode)
+    print('Complete cumulative use of vasoactive')
     result_3 = Rate_of_change(result_2, mode)
+    print('Complete Rate of change in measurement')
 
     return result_3
 
