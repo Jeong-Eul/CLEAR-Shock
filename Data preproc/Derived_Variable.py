@@ -15,12 +15,12 @@ import gc
 # patient[patient.uniquepid.isin(eicu.uniquepid.unique())].hospitalid.nunique()
 
 vital_target = ['MAP', 'HR', 'ABPs', 'ABPd', 'Respiratory Rate', 'SVO2', 'O2 Sat (%)']
-lab_target = ['pH', 'Creatinine', 'Lactate', 'ALT', 'AST', 'Total Bilirubin', 'RedBloodCell', 'Troponin-T']
+lab_target = ['pH', 'Creatinine', 'ALT', 'AST', 'Total Bilirubin', 'RedBloodCell', 'Troponin-T']
 
 
 def return_result_df():
-    mimic_path = "/Users/wjddm/OneDrive/바탕 화면/local_dahs/Data/MIMICIV-CIRC(12h).csv.gz"
-    eicu_path = "/Users/wjddm/OneDrive/바탕 화면/local_dahs/Data/eICU-CIRC(12h).csv.gz"
+    mimic_path = "/Users/DAHS/Desktop/MIMICIV2.2_PREPROC/preprocessing/MIMICIV-CIRC(12h).csv.gz"
+    eicu_path = "/Users/DAHS/Desktop/eICU2.0_PREPROC/eICU-CIRC(12h).csv.gz"
 
     mimic, eicu = integration_source_target(mimic_path, eicu_path)
 
@@ -58,7 +58,7 @@ def Lactate_clearance(data, mode):
     if mode == 'mimic':
         stayid = 'stay_id'
     elif mode == 'eicu':
-        stayid == 'patientunitstayid'
+        stayid = 'patientunitstayid'
 
     # Calculating Lactate clearance for different time intervals (1, 3, 5, 7, 9 ,11 hours) with corrected logic
     for hours in [1, 3, 5, 7, 9, 11]:
@@ -81,7 +81,7 @@ def cumsum_vasoactive(data, mode):
     if mode == 'mimic':
         stayid = 'stay_id'
     elif mode == 'eicu':
-        stayid == 'patientunitstayid'
+        stayid = 'patientunitstayid'
 
     df['cum_use_vaso'] = df.groupby(stayid)['vasoactive/inotropic'].cumsum()
 
@@ -100,7 +100,7 @@ def Rate_of_change(data, mode):
     if mode == 'mimic':
         stayid = 'stay_id'
     elif mode == 'eicu':
-        stayid == 'patientunitstayid'
+        stayid = 'patientunitstayid'
 
     # Calculating rate of change in measurment for different time intervals (1, 3, 5, 7, 9 ,11 hours) with corrected logic
     for hours in [1, 3, 5, 7, 9, 11]:
