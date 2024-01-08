@@ -35,7 +35,7 @@ class Attention(nn.Module):
 
         self.norm = nn.LayerNorm(dim)
 
-        self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
+        self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False) # 쿼리, 키, 밸류를 한번에 생성
         self.to_out = nn.Linear(inner_dim, dim, bias = False)
 
         self.dropout = nn.Dropout(dropout)
@@ -45,7 +45,7 @@ class Attention(nn.Module):
 
         x = self.norm(x)
 
-        q, k, v = self.to_qkv(x).chunk(3, dim = -1)
+        q, k, v = self.to_qkv(x).chunk(3, dim = -1) # 쿼리, 키, 밸류 뭉텅이 벡터를 3개로 분할, dim = -1 은 벡터의 마지막 차원(길이)를 따라 분할함을 의미함
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), (q, k, v)) # (배치 크기, 시퀀스 길이, 헤드 수 * 헤드 차원)에서 (배치 크기, 헤드 수, 시퀀스 길이, 헤드 당 차원)으로 재배열
         q = q * self.scale
 
