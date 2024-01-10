@@ -16,7 +16,7 @@ def check_class_ratio(dataset):
     class_ratio = round(np.mean(dataset.classes), 4)
     return class_ratio
 
-def data_split(df, seed, train_ratio, Threshold, n_trial):
+def data_split(df, seed, train_ratio, Threshold, n_trial, down_sample, case1, case2):
     data = df.copy()
     
     search_time = time.time()
@@ -72,6 +72,52 @@ def data_split(df, seed, train_ratio, Threshold, n_trial):
     tes_class3 = test.classes.value_counts()[2]
     tes_class4 = test.classes.value_counts()[3]
     
+    #Down sampling
+    
+    if down_sample == True:
+    
+        class_0_df = train[train['classes'] == 0].sample(n=303412, random_state=42)
+        class_1_df = train[train['classes'] == 1]
+        # class_2_df = train[train['classes'] == 2]
+        # class_3_df = train[train['classes'] == 3].sample(n=13995, random_state=42)
+        
+        class_0_df_test = test[test['classes'] == 0].sample(n=315200, random_state=42)
+        class_1_df_test = test[test['classes'] == 1]
+        
+        train = pd.concat([class_0_df, class_1_df])
+        test = pd.concat([class_0_df_test, class_1_df_test])
+        
+    else:
+            if case1 == True:
+                class_0_df = train[train['classes'] == 0]
+                class_0_df_test = test[test['classes'] == 0]
+    
+                
+                train = class_0_df.copy()
+                test = class_0_df_test.copy()
+                
+            elif case2 == True:
+                
+                class_1_df = train[train['classes'] == 1]
+                class_1_df_test = test[test['classes'] == 1]
+                
+                train = class_1_df.copy()
+                test = class_1_df_test.copy()
+                
+            else:
+                class_0_df = train[train['classes'] == 0]
+                class_1_df = train[train['classes'] == 1]
+                # class_2_df = train[train['classes'] == 2]
+                # class_3_df = train[train['classes'] == 3].sample(n=13995, random_state=42)
+                
+                class_0_df_test = test[test['classes'] == 0]
+                class_1_df_test = test[test['classes'] == 1]
+                
+                train = pd.concat([class_0_df, class_1_df])
+                test = pd.concat([class_0_df_test, class_1_df_test])
+                
+        
+        
     
     print('test set : test set = {} : {}'.format(train_ratio, 1-train_ratio))
     print('Train set class: ', train.classes.value_counts().sort_index())
@@ -92,16 +138,19 @@ def data_split(df, seed, train_ratio, Threshold, n_trial):
     print('총 소요 시간(초):{}'.format(search_time_end - search_time))
     print('시도한 trial 수: ', T)
     
+
     return train.reset_index(drop=True), test.reset_index(drop=True)
 
 class TableDataset(Dataset):
-    def __init__(self,data_path,data_type,mode,seed):
+    def __init__(self,data_path,data_type,mode,seed, sampling, case1, case2):
         self.data_path = data_path
         self.data_type = data_type # eicu or mimic
         self.mode = mode # train / valid / test
         self.target = 'classes'
         self.seed = seed
-        
+        self.sampling = sampling
+        self.case1 = case1
+        self.case2 = case2
         self.df_num, self.df_cat, self.y = self.__prepare_data__()
 
     def __prepare_data__(self):
@@ -110,17 +159,19 @@ class TableDataset(Dataset):
         df_raw.replace([np.inf, -np.inf], np.nan, inplace=True)
         df_raw.fillna(0, inplace=True)
         
-        self.num_features = []
-        self.cat_features = []    
+        self.num_features = ['HR', 'Temperature', 'MAP', 'ABPs', 'ABPd', 'Respiratory Rate', 'O2 Sat (%)', 'SVO2', 'SpO2',
+                             'PaO2','FIO2 (%)', 'EtCO2', 'Cardiac Output', 'GCS_score', 'Lactate', 'Lactate_clearance_1h', 'Lactate_clearance_3h', 'Lactate_clearance_5h', 'Lactate_clearance_7h', 'Lactate_clearance_9h', 'Lactate_clearance_11h',
+                             'BUN','Total Bilirubin', 'ALT', 'Troponin-T', 'Creatinine','RedBloodCell', 'pH', 'Hemoglobin', 'Hematocrit', 'classes', 'stay_id', 'hadm_id', 'Annotation', 'ethnicity']
+        self.cat_features = ['vasoactive/inotropic', 'Mechanical_circ_support', 'Shock_next_12h']    
         
-        for col in df_raw.columns:
-            if df_raw[col].nunique() == 2 and all(df_raw[col].unique() == [0, 1]):
-                self.cat_features.append(col)
-            else:
-                self.num_features.append(col)
+        # for col in df_raw.columns:
+        #     if df_raw[col].nunique() == 2 and all(df_raw[col].unique() == [0, 1]):
+        #         self.cat_features.append(col)
+        #     else:
+        #         self.num_features.append(col)
                 
         scaler = MinMaxScaler()
-        df_train, df_valid = data_split(df_raw, self.seed, 0.7, 0.05, 1)
+        df_train, df_valid = data_split(df_raw, self.seed, 0.7, 0.05, 1, self.sampling, self.case1, self.case2)
         
         # if dataset is eicu
         if self.data_type == 'mimic':
@@ -149,7 +200,7 @@ class TableDataset(Dataset):
         else:
             ## scaler fitting을 위한 과정
             df_scaling = pd.read_csv("/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/eICU.csv.gz", compression='gzip')
-            df_train, _ = data_split(df_scaling,self.seed, 0.7, 0.05, 1)
+            df_train, _ = data_split(df_scaling,self.seed, 0.7, 0.05, 1, self.sampling, self.case1, self.case2)
             X_num_standard = df_train[self.num_features].drop(['classes', 'patientunitstayid', 'uniquepid', 'Annotation', 'ethnicity'], axis = 1)
             scaler.fit(X_num_standard)
 
