@@ -69,14 +69,18 @@ def data_split(df, seed, train_ratio, Threshold, n_trial, down_sample, case1, ca
     data = data[data.index.isin(sub_view.index)].reset_index(drop=True)
     
     sub_view = data[['stay_id', 'Time_since_ICU_admission', 'MAP', 'Lactate', 'vasoactive/inotropic','Annotation', 'Shock_next_12h', 'classes']]
-        # stay_id 별로 그룹을 만들고, 각 그룹에서 모든 'Annotation' 값이 'no_circ'인지 확인합니다.
+    
     filtered_stay_ids = sub_view.groupby('stay_id').filter(lambda x: (x['Annotation'] == 'no_circ').all())
 
-    # 위에서 필터링된 데이터프레임에서 유니크한 'stay_id'를 추출합니다.
     unique_stay_ids = filtered_stay_ids['stay_id'].unique()
     
-    data = data[~(data.stay_id.isin(unique_stay_ids))].reset_index(drop=True)
-        
+    filtered_stay_ids_circ = sub_view.groupby('stay_id').filter(lambda x: ~x['Annotation'].str.contains(r'\bcirc\b', regex=True).any())
+    
+    unique_stay_ids_circ = filtered_stay_ids_circ['stay_id'].unique()
+    print('한번이라도 circulatory failure event가 발생하지 않은 stay 제거',len(unique_stay_ids.tolist()+unique_stay_ids_circ.tolist()))
+
+    data = data[~(data['stay_id'].isin(unique_stay_ids.tolist()+unique_stay_ids_circ.tolist()))].reset_index(drop=True)
+    
     gc.collect()
     
     search_time = time.time()
