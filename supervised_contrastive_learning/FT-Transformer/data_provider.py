@@ -9,6 +9,7 @@ import warnings
 from tqdm import tqdm
 import random
 import time
+import gc
 
 warnings.filterwarnings('ignore')
 
@@ -18,6 +19,65 @@ def check_class_ratio(dataset):
 
 def data_split(df, seed, train_ratio, Threshold, n_trial, down_sample, case1, case2):
     data = df.copy()
+    
+    
+    #모든 관측치가 amb , 0, 0인 경우 제외
+    sub_view = data[['stay_id', 'Time_since_ICU_admission', 'Annotation', 'Shock_next_12h', 'classes']]
+    sub_view[(sub_view['Annotation']=='ambiguous')&(sub_view['Shock_next_12h']==0)&(sub_view['classes']==0)]
+
+
+    filtered_df = sub_view[(sub_view['Annotation'] == 'ambiguous') & 
+                        (sub_view['Shock_next_12h'] == 0) & 
+                        (sub_view['classes'] == 0)]
+
+
+    matching_stay_ids = []
+
+    for stay_id in filtered_df['stay_id'].unique():
+        if filtered_df[filtered_df['stay_id'] == stay_id].shape[0] == sub_view[sub_view['stay_id'] == stay_id].shape[0]:
+            matching_stay_ids.append(stay_id)
+    
+    data = data[~(data['stay_id'].isin(matching_stay_ids))]
+    
+    # 조건을 벡터화하여 계산
+    condition_met = (data['Annotation'] == 'ambiguous') & \
+                    (data['Shock_next_12h'] == 0) & \
+                    (data['classes'] == 0)
+
+    # 각 stay_id에 대해 첫 조건 불만족 지점 찾기
+    # Use groupby with 'stay_id' and then apply a lambda function to find the min index for each group
+    first_not_met_index = data[~condition_met].groupby('stay_id').apply(lambda x: x.index.min())
+    
+    sub_view = data[['stay_id', 'Time_since_ICU_admission', 'Annotation', 'Shock_next_12h', 'classes']]
+    
+    # Assuming data and first_not_met_index are already defined
+
+    # Initialize a flag column with all True (meaning keep all rows initially)
+    sub_view['keep_row'] = True
+
+    # Iterate over first_not_met_index to update the flag column
+    for stay_id, index in first_not_met_index.items():
+        condition = (sub_view['stay_id'] == stay_id) & (sub_view.index >= index) & condition_met
+        sub_view.loc[condition, 'keep_row'] = False
+
+    # Filter the sub_viewFrame based on the flag column
+    sub_view = sub_view[sub_view['keep_row']]
+
+    # Drop the flag column if it's no longer needed
+    sub_view.drop(columns=['keep_row'], inplace=True)
+    
+    data = data[data.index.isin(sub_view.index)].reset_index(drop=True)
+    
+    sub_view = data[['stay_id', 'Time_since_ICU_admission', 'MAP', 'Lactate', 'vasoactive/inotropic','Annotation', 'Shock_next_12h', 'classes']]
+        # stay_id 별로 그룹을 만들고, 각 그룹에서 모든 'Annotation' 값이 'no_circ'인지 확인합니다.
+    filtered_stay_ids = sub_view.groupby('stay_id').filter(lambda x: (x['Annotation'] == 'no_circ').all())
+
+    # 위에서 필터링된 데이터프레임에서 유니크한 'stay_id'를 추출합니다.
+    unique_stay_ids = filtered_stay_ids['stay_id'].unique()
+    
+    data = data[~(data.stay_id.isin(unique_stay_ids))].reset_index(drop=True)
+        
+    gc.collect()
     
     search_time = time.time()
      
@@ -105,20 +165,10 @@ def data_split(df, seed, train_ratio, Threshold, n_trial, down_sample, case1, ca
                 test = class_1_df_test.copy()
                 
             else:
-                class_0_df = train[train['classes'] == 0]
-                class_1_df = train[train['classes'] == 1]
-                # class_2_df = train[train['classes'] == 2]
-                # class_3_df = train[train['classes'] == 3].sample(n=13995, random_state=42)
+                train = holdout_train.copy()
+                test = holdout_test.copy()
                 
-                class_0_df_test = test[test['classes'] == 0]
-                class_1_df_test = test[test['classes'] == 1]
                 
-                train = pd.concat([class_0_df, class_1_df])
-                test = pd.concat([class_0_df_test, class_1_df_test])
-                
-        
-        
-    
     print('test set : test set = {} : {}'.format(train_ratio, 1-train_ratio))
     print('Train set class: ', train.classes.value_counts().sort_index())
     print('Test set class: ', test.classes.value_counts().sort_index())
