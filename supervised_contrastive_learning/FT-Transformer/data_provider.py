@@ -136,43 +136,13 @@ def data_split(df, seed, train_ratio, Threshold, n_trial, down_sample, case1, ca
     tes_class3 = test.classes.value_counts()[2]
     tes_class4 = test.classes.value_counts()[3]
     
-    #Down sampling
     
-    if down_sample == True:
+    # train_no_circ = train[(train['classes'] == 0)|(train['classes'] == 1)]
+    # train_circ = train[(train['classes'] == 2)|(train['classes'] == 3)]
     
-        class_0_df = train[train['classes'] == 0].sample(n=303412, random_state=42)
-        class_1_df = train[train['classes'] == 1]
-        # class_2_df = train[train['classes'] == 2]
-        # class_3_df = train[train['classes'] == 3].sample(n=13995, random_state=42)
-        
-        class_0_df_test = test[test['classes'] == 0].sample(n=315200, random_state=42)
-        class_1_df_test = test[test['classes'] == 1]
-        
-        train = pd.concat([class_0_df, class_1_df])
-        test = pd.concat([class_0_df_test, class_1_df_test])
-        
-    else:
-            if case1 == True:
-                class_0_df = train[train['classes'] == 0]
-                class_0_df_test = test[test['classes'] == 0]
-    
-                
-                train = class_0_df.copy()
-                test = class_0_df_test.copy()
-                
-            elif case2 == True:
-                
-                class_1_df = train[train['classes'] == 1]
-                class_1_df_test = test[test['classes'] == 1]
-                
-                train = class_1_df.copy()
-                test = class_1_df_test.copy()
-                
-            else:
-                train = holdout_train.copy()
-                test = holdout_test.copy()
-                
-                
+    # test_no_circ = test[(test['classes'] == 0)|(test['classes'] == 1)]
+    # test_circ = test[(test['classes'] == 2)|(test['classes'] == 3)]
+                         
     print('test set : test set = {} : {}'.format(train_ratio, 1-train_ratio))
     print('Train set class: ', train.classes.value_counts().sort_index())
     print('Test set class: ', test.classes.value_counts().sort_index())
@@ -215,7 +185,7 @@ class TableDataset(Dataset):
         
         self.num_features = ['HR', 'Temperature', 'MAP', 'ABPs', 'ABPd', 'Respiratory Rate', 'O2 Sat (%)', 'SVO2', 'SpO2',
                              'PaO2','FIO2 (%)', 'EtCO2', 'Cardiac Output', 'GCS_score', 'Lactate', 'Lactate_clearance_1h', 'Lactate_clearance_3h', 'Lactate_clearance_5h', 'Lactate_clearance_7h', 'Lactate_clearance_9h', 'Lactate_clearance_11h',
-                             'BUN','Total Bilirubin', 'ALT', 'Troponin-T', 'Creatinine','RedBloodCell', 'pH', 'Hemoglobin', 'Hematocrit', 'classes', 'stay_id', 'hadm_id', 'Annotation', 'ethnicity']
+                             'BUN','Total Bilirubin', 'ALT', 'Troponin-T', 'Creatinine','RedBloodCell', 'pH', 'Hemoglobin', 'Hematocrit','classes', 'stay_id', 'hadm_id', 'Annotation', 'ethnicity']
         self.cat_features = ['vasoactive/inotropic', 'Mechanical_circ_support', 'Shock_next_12h']    
         
         # for col in df_raw.columns:
