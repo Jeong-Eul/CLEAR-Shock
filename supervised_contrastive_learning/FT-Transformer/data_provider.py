@@ -17,79 +17,27 @@ def check_class_ratio(dataset):
     class_ratio = round(np.mean(dataset.classes), 4)
     return class_ratio
 
-def data_split(df, seed, train_ratio, Threshold, n_trial, down_sample, case1, case2):
+def data_split(df, seed, train_ratio, Threshold, n_trial, mode):
+    
+    if mode == 'mimic':
+        patient_id = 'subject_id'
+        stay_id = 'stay_id'
+        seed = seed
+    else:
+        patient_id = 'uniquepid'
+        stay_id = 'patientunitstayid'
+        seed = seed
+        
     data = df.copy()
-    
-    
-    #모든 관측치가 amb , 0, 0인 경우 제외
-    sub_view = data[['stay_id', 'Time_since_ICU_admission', 'Annotation', 'Shock_next_12h', 'classes']]
-    sub_view[(sub_view['Annotation']=='ambiguous')&(sub_view['Shock_next_12h']==0)&(sub_view['classes']==0)]
-
-
-    filtered_df = sub_view[(sub_view['Annotation'] == 'ambiguous') & 
-                        (sub_view['Shock_next_12h'] == 0) & 
-                        (sub_view['classes'] == 0)]
-
-
-    matching_stay_ids = []
-
-    for stay_id in filtered_df['stay_id'].unique():
-        if filtered_df[filtered_df['stay_id'] == stay_id].shape[0] == sub_view[sub_view['stay_id'] == stay_id].shape[0]:
-            matching_stay_ids.append(stay_id)
-    
-    data = data[~(data['stay_id'].isin(matching_stay_ids))]
-    
-    # 조건을 벡터화하여 계산
-    condition_met = (data['Annotation'] == 'ambiguous') & \
-                    (data['Shock_next_12h'] == 0) & \
-                    (data['classes'] == 0)
-
-    # 각 stay_id에 대해 첫 조건 불만족 지점 찾기
-    # Use groupby with 'stay_id' and then apply a lambda function to find the min index for each group
-    first_not_met_index = data[~condition_met].groupby('stay_id').apply(lambda x: x.index.min())
-    
-    sub_view = data[['stay_id', 'Time_since_ICU_admission', 'Annotation', 'Shock_next_12h', 'classes']]
-    
-    # Assuming data and first_not_met_index are already defined
-
-    # Initialize a flag column with all True (meaning keep all rows initially)
-    sub_view['keep_row'] = True
-
-    # Iterate over first_not_met_index to update the flag column
-    for stay_id, index in first_not_met_index.items():
-        condition = (sub_view['stay_id'] == stay_id) & (sub_view.index >= index) & condition_met
-        sub_view.loc[condition, 'keep_row'] = False
-
-    # Filter the sub_viewFrame based on the flag column
-    sub_view = sub_view[sub_view['keep_row']]
-
-    # Drop the flag column if it's no longer needed
-    sub_view.drop(columns=['keep_row'], inplace=True)
-    
-    data = data[data.index.isin(sub_view.index)].reset_index(drop=True)
-    
-    sub_view = data[['stay_id', 'Time_since_ICU_admission', 'MAP', 'Lactate', 'vasoactive/inotropic','Annotation', 'Shock_next_12h', 'classes']]
-    
-    filtered_stay_ids = sub_view.groupby('stay_id').filter(lambda x: (x['Annotation'] == 'no_circ').all())
-
-    unique_stay_ids = filtered_stay_ids['stay_id'].unique()
-    
-    filtered_stay_ids_circ = sub_view.groupby('stay_id').filter(lambda x: ~x['Annotation'].str.contains(r'\bcirc\b', regex=True).any())
-    
-    unique_stay_ids_circ = filtered_stay_ids_circ['stay_id'].unique()
-    print('한번이라도 circulatory failure event가 발생하지 않은 stay 제거',len(unique_stay_ids.tolist()+unique_stay_ids_circ.tolist()))
-
-    data = data[~(data['stay_id'].isin(unique_stay_ids.tolist()+unique_stay_ids_circ.tolist()))].reset_index(drop=True)
-    
     gc.collect()
     
     search_time = time.time()
      
     for T in range(n_trial):
-        array = data.subject_id.unique()
+        array = data[patient_id].unique()
         
         # seed = np.random.randint(0, 10000, 1)
-        # seed = 6379
+        # seed = 393
         np.random.seed(seed) 
         np.random.shuffle(array)
 
@@ -98,10 +46,10 @@ def data_split(df, seed, train_ratio, Threshold, n_trial, down_sample, case1, ca
         stay_for_train, stay_for_test = np.split(array, [split_point])
 
         
-        condition_train = data.subject_id.isin(stay_for_train)
+        condition_train = data[patient_id].isin(stay_for_train)
         holdout_train = data[condition_train]
 
-        condition_test = data.subject_id.isin(stay_for_test)
+        condition_test = data[patient_id].isin(stay_for_test)
         holdout_test = data[condition_test]
 
         train_class_ratio  = check_class_ratio(holdout_train)
@@ -137,44 +85,51 @@ def data_split(df, seed, train_ratio, Threshold, n_trial, down_sample, case1, ca
     tes_class4 = test.classes.value_counts()[3]
     
     
-    # train_no_circ = train[(train['classes'] == 0)|(train['classes'] == 1)]
-    # train_circ = train[(train['classes'] == 2)|(train['classes'] == 3)]
-    
-    # test_no_circ = test[(test['classes'] == 0)|(test['classes'] == 1)]
-    # test_circ = test[(test['classes'] == 2)|(test['classes'] == 3)]
-                         
-    print('test set : test set = {} : {}'.format(train_ratio, 1-train_ratio))
-    print('Train set class: ', train.classes.value_counts().sort_index())
-    print('Test set class: ', test.classes.value_counts().sort_index())
-    print('-'*20)
-    print('Train class ratio: {}:{}:{}:{}'.format((trn_class1)/(trn_class1+trn_class2+trn_class3+trn_class4), (trn_class2)/(trn_class1+trn_class2+trn_class3+trn_class4), (trn_class3)/(trn_class1+trn_class2+trn_class3+trn_class4), (trn_class4)/(trn_class1+trn_class2+trn_class3+trn_class4)))
-    print('Test class ratio: {}:{}:{}:{}'.format((tes_class1)/(tes_class1+tes_class2+tes_class3+tes_class4), (tes_class2)/(tes_class1+tes_class2+tes_class3+tes_class4), (tes_class3)/(tes_class1+tes_class2+tes_class3+tes_class4), (tes_class4)/(tes_class1+tes_class2+tes_class3+tes_class4)))
-    print('-'*20)
-    print('Number of trainset patient:', len(train.subject_id.unique()))
-    print('Number of testset patient:', len(test.subject_id.unique()))
-    print('Number of trainset stay:', len(train.stay_id.unique()))
-    print('Number of testset stay:', len(test.stay_id.unique()))
-    print('-'*20)
-    print('Split seed: ',seed)
-    print('train ratio:', train_ratio)
-    print('Threshold:', Threshold)
-    print('-'*20)
-    print('총 소요 시간(초):{}'.format(search_time_end - search_time))
-    print('시도한 trial 수: ', T)
-    
+    print("========== 데이터셋 분할 정보 ==========")
+    print("데이터셋 비율: 학습 = {:.2f}, 테스트 = {:.2f}".format(train_ratio, 1-train_ratio))
+    print("학습셋 클래스 비율: {}".format(train.classes.value_counts().sort_index()))
+    print("테스트셋 클래스 비율: {}".format(test.classes.value_counts().sort_index()))
+    print("--------------------------------------")
+
+    print("========== 클래스 비율 ==========")
+    print("학습셋 클래스 비율: {:.2f}:{:.2f}:{:.2f}:{:.2f}".format(
+        trn_class1/(trn_class1+trn_class2+trn_class3+trn_class4),
+        trn_class2/(trn_class1+trn_class2+trn_class3+trn_class4),
+        trn_class3/(trn_class1+trn_class2+trn_class3+trn_class4),
+        trn_class4/(trn_class1+trn_class2+trn_class3+trn_class4)))
+    print("테스트셋 클래스 비율: {:.2f}:{:.2f}:{:.2f}:{:.2f}".format(
+        tes_class1/(tes_class1+tes_class2+tes_class3+tes_class4),
+        tes_class2/(tes_class1+tes_class2+tes_class3+tes_class4),
+        tes_class3/(tes_class1+tes_class2+tes_class3+tes_class4),
+        tes_class4/(tes_class1+tes_class2+tes_class3+tes_class4)))
+    print("--------------------------------------")
+
+    print("========== 환자 및 체류 정보 ==========")
+    print("학습셋 환자 수: {}".format(len(train[patient_id].unique())))
+    print("테스트셋 환자 수: {}".format(len(test[patient_id].unique())))
+    print("학습셋 체류 수: {}".format(len(train[stay_id].unique())))
+    print("테스트셋 체류 수: {}".format(len(test[stay_id].unique())))
+    print("--------------------------------------")
+
+    print("========== 실험 설정 ==========")
+    print("분할 시드: {}".format(seed))
+    print("학습 비율: {}".format(train_ratio))
+    print("임계값: {}".format(Threshold))
+    print("--------------------------------------")
+
+    print("========== 실행 결과 ==========")
+    print("총 소요 시간(초): {:.2f}".format(search_time_end - search_time))
+    print("시도한 시행 횟수: {}".format(T))
 
     return train.reset_index(drop=True), test.reset_index(drop=True)
 
 class TableDataset(Dataset):
-    def __init__(self,data_path,data_type,mode,seed, sampling, case1, case2):
+    def __init__(self,data_path,data_type,mode,seed):
         self.data_path = data_path
         self.data_type = data_type # eicu or mimic
         self.mode = mode # train / valid / test
         self.target = 'classes'
         self.seed = seed
-        self.sampling = sampling
-        self.case1 = case1
-        self.case2 = case2
         self.df_num, self.df_cat, self.y = self.__prepare_data__()
 
     def __prepare_data__(self):
@@ -183,24 +138,28 @@ class TableDataset(Dataset):
         df_raw.replace([np.inf, -np.inf], np.nan, inplace=True)
         df_raw.fillna(0, inplace=True)
         
-        self.num_features = ['HR', 'Temperature', 'MAP', 'ABPs', 'ABPd', 'Respiratory Rate', 'O2 Sat (%)', 'SVO2', 'SpO2',
-                             'PaO2','FIO2 (%)', 'EtCO2', 'Cardiac Output', 'GCS_score', 'Lactate', 'Lactate_clearance_1h', 'Lactate_clearance_3h', 'Lactate_clearance_5h', 'Lactate_clearance_7h', 'Lactate_clearance_9h', 'Lactate_clearance_11h',
-                             'BUN','Total Bilirubin', 'ALT', 'Troponin-T', 'Creatinine','RedBloodCell', 'pH', 'Hemoglobin', 'Hematocrit','classes', 'stay_id', 'hadm_id', 'Annotation', 'ethnicity']
-        self.cat_features = ['vasoactive/inotropic', 'Mechanical_circ_support', 'Shock_next_12h']    
+        # self.num_features = ['HR', 'Temperature', 'MAP', 'ABPs', 'ABPd', 'Respiratory Rate', 'O2 Sat (%)', 'SVO2', 'SpO2',
+        #                      'PaO2','FIO2 (%)', 'EtCO2', 'Cardiac Output', 'GCS_score', 'Lactate', 'Lactate_clearance_1h',
+        #                      'Lactate_clearance_3h', 'Lactate_clearance_5h', 'Fluids(ml)', 'Glucose', 'cum_use_vaso','Alkaline_phosphatase','Age','Anion gap',
+        #                      'BUN','Total Bilirubin', 'ALT', 'Troponin-T', 'Creatinine','RedBloodCell', 'pH', 'Hemoglobin', 'Hematocrit','classes', 'stay_id', 'hadm_id', 'Annotation', 'ethnicity']
+        # self.cat_features = ['vasoactive/inotropic', 'Mechanical_circ_support', 'Shock_next_12h', 'Annotation']    
         
-        # for col in df_raw.columns:
-        #     if df_raw[col].nunique() == 2 and all(df_raw[col].unique() == [0, 1]):
-        #         self.cat_features.append(col)
-        #     else:
-        #         self.num_features.append(col)
+        self.cat_features = []
+        self.num_features = []
+        
+        for col in df_raw.columns:
+            if df_raw[col].nunique() == 2:
+                self.cat_features.append(col)
+            else:
+                self.num_features.append(col) #height_fillna is included num_features bacause that in mimic only have value 0 -> eicu는 binary 지만 num에 포함하자
                 
         scaler = MinMaxScaler()
-        df_train, df_valid = data_split(df_raw, self.seed, 0.7, 0.05, 1, self.sampling, self.case1, self.case2)
+        df_train, df_valid = data_split(df_raw, self.seed, 0.7, 0.05, 1, mode = self.data_type)
         
         # if dataset is eicu
         if self.data_type == 'mimic':
             if self.mode == "train":
-                X_num = df_train[self.num_features].drop(['classes', 'stay_id', 'hadm_id', 'Annotation', 'ethnicity'], axis = 1)
+                X_num = df_train[self.num_features].drop(['classes', 'stay_id', 'subject_id','hadm_id', 'Annotation', 'ethnicity'], axis = 1)
                 X_num_scaled = scaler.fit_transform(X_num)
                 
                 X_num = pd.DataFrame(X_num_scaled,columns = X_num.columns)
@@ -209,10 +168,10 @@ class TableDataset(Dataset):
                 return X_num, X_cat, y
             
             else:
-                X_num_standard = df_train[self.num_features].drop(['classes', 'stay_id', 'hadm_id', 'Annotation', 'ethnicity'], axis = 1)
+                X_num_standard = df_train[self.num_features].drop(['classes', 'stay_id', 'subject_id','hadm_id', 'Annotation', 'ethnicity'], axis = 1)
                 scaler.fit(X_num_standard)
                 
-                X_num = df_valid[self.num_features].drop(['classes', 'stay_id', 'hadm_id', 'Annotation', 'ethnicity'], axis = 1)
+                X_num = df_valid[self.num_features].drop(['classes', 'stay_id', 'subject_id','hadm_id', 'Annotation', 'ethnicity'], axis = 1)
                 X_num_scaled = scaler.transform(X_num)
                 
                 X_num = pd.DataFrame(X_num_scaled,columns = X_num.columns)
@@ -224,7 +183,7 @@ class TableDataset(Dataset):
         else:
             ## scaler fitting을 위한 과정
             df_scaling = pd.read_csv("/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/eICU.csv.gz", compression='gzip')
-            df_train, _ = data_split(df_scaling,self.seed, 0.7, 0.05, 1, self.sampling, self.case1, self.case2)
+            df_train, _ = data_split(df_scaling,self.seed, 0.7, 0.05, 1)
             X_num_standard = df_train[self.num_features].drop(['classes', 'patientunitstayid', 'uniquepid', 'Annotation', 'ethnicity'], axis = 1)
             scaler.fit(X_num_standard)
 
@@ -245,3 +204,5 @@ class TableDataset(Dataset):
     
     def __len__(self):
         return self.y.shape[0]
+    
+

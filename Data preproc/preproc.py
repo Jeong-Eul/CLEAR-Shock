@@ -20,7 +20,7 @@ def integration_source_target(mimic_path, eicu_path):
     # 잘못 표기한 컬럼 명 변경 및 삭제
 
     mimic = mimic.rename(columns={'SaO2': 'O2 Sat (%)', 'SaO2_fillna':'O2 Sat (%)_fillna', 'Tropinin-T':'Troponin-T'})
-    eicu = eicu.rename(columns = {'Tropinin-T':'Troponin-T'})
+    eicu = eicu.rename(columns = {'Tropinin-T':'Troponin-T', 'SaO2_fillna':'SpO2_fillna'})
     eicu = eicu.drop('SaO2', axis = 1)
     # 필요 없는 컬럼 날리기
 
@@ -44,6 +44,25 @@ def integration_source_target(mimic_path, eicu_path):
 
     mimic = mimic.drop(['ECMO', 'IABP', 'Impella'], axis =1)
     eicu = eicu.drop(['ECMO', 'IABP'], axis =1)
+    
+    columns_to_check = ['SpO2', 'ABPd', 'MAP', 'FIO2 (%)']
+    
+    thresholds = {
+    'SpO2': (0, 100), 
+    'ABPd': (0, 120), 
+    'MAP': (0, 150), 
+    'FIO2 (%)': (0, 100)  
+    }
+    
+    for column in columns_to_check:
+        lower, upper = thresholds[column]
+        mask = (mimic[column] < lower) | (mimic[column] > upper)
+        mimic.loc[mask, column] = mimic.loc[mask, column].replace(mimic.loc[mask, column], method='ffill')
+        mimic.fillna(method='bfill', inplace=True)
+        
+        mask = (eicu[column] < lower) | (eicu[column] > upper)
+        eicu.loc[mask, column] = eicu.loc[mask, column].replace(eicu.loc[mask, column], method='ffill')
+        eicu.fillna(method='bfill', inplace=True)
     
     #컬럼 순서 맞추기
     
