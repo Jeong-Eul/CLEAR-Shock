@@ -9,6 +9,50 @@ def filter_cohort(mimic, eicu):
  
     return mimic[mimic['stay_id'].isin(mimic_circ_ids)], eicu[eicu['patientunitstayid'].isin(eicu_circ_ids)]
 
+
+def update_ambiguous_to_amb_circ(arr):
+    updated_arr = np.array(arr, copy=True)
+    n = len(arr)
+
+    for i in range(1, n - 1):
+        if arr[i] == 'ambiguous':
+            # Check if there's 'circ' before and after the 'ambiguous' sequence
+            if arr[i - 1] == 'circ' and 'circ' in arr[i + 1:]:
+                # Find the end of the 'ambiguous' sequence
+                end = i
+                while end < n and arr[end] == 'ambiguous':
+                    end += 1
+                
+                # Update the 'ambiguous' sequence to 'amb_circ'
+                updated_arr[i:end] = 'amb_circ'
+
+                # Skip the already updated part
+                i = end
+
+    return updated_arr
+
+
+def define_ambcirc(df, mode):
+    data = df.copy()
+    
+    if mode == 'mimic':
+        stay_id_id = 'stay_id'
+    elif mode == 'eicu':
+        stay_id_id = 'patientunitstayid'
+    
+    for stay_id in tqdm(data[stay_id_id].unique()):
+        
+        sample = data[data[stay_id_id]==stay_id]
+        
+        index = sample.index
+        annotation_arr = sample['Annotation'].values
+        
+        new_annotation_arr = update_ambiguous_to_amb_circ(annotation_arr)
+        data['Annotation'].loc[index] = new_annotation_arr
+        
+    return data
+
+
 def early_event_prediction_label(df):
     
     data = df.copy()
@@ -21,6 +65,7 @@ def early_event_prediction_label(df):
     data.loc[class2,'classes'] = 1
     
     return data
+
 
 def optimized_recovered_labeler(df, mode):
     targ = df.copy()
