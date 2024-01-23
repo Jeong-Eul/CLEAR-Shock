@@ -4,7 +4,17 @@ from tqdm import tqdm
 
 pd.set_option('mode.chained_assignment',  None)
 
+
 def filter_cohort(mimic, eicu):
+    
+    filtered_stay_ids_m = mimic.groupby('stay_id').apply(lambda x: (x['Annotation'].str.startswith('no_circ')).any())
+    filtered_stay_ids_m = filtered_stay_ids_m[filtered_stay_ids_m].index
+
+    filtered_stay_ids_e = eicu.groupby('patientunitstayid').apply(lambda x: (x['Annotation'].str.startswith('no_circ')).any())
+    filtered_stay_ids_e = filtered_stay_ids_e[filtered_stay_ids_e].index
+    
+    mimic = mimic[mimic['stay_id'].isin(filtered_stay_ids_m)].reset_index(drop=True)
+    eicu = eicu[eicu['patientunitstayid'].isin(filtered_stay_ids_e)].reset_index(drop=True)
 
     mimic_circ_ids = mimic[(mimic['Annotation'] == 'circ') | (mimic['Annotation'] == 'ambiguous')]['stay_id'].unique()
     eicu_circ_ids = eicu[(eicu['Annotation'] == 'circ') | (eicu['Annotation'] == 'ambiguous')]['patientunitstayid'].unique()
@@ -22,7 +32,7 @@ def update_ambiguous_to_amb_circ(arr):
             if arr[i - 1] == 'circ' and 'circ' in arr[i + 1:]:
                 # Find the end of the 'ambiguous' sequence
                 end = i
-                while end < n and arr[end] == 'ambiguous':
+                while end < n and arr[end] == 'ambigouus':
                     end += 1
                 
                 # Update the 'ambiguous' sequence to 'amb_circ'
@@ -42,6 +52,14 @@ def define_ambcirc(df, mode):
     elif mode == 'eicu':
         stay_id_id = 'patientunitstayid'
     
+    # 모든 stay가 circ인 경우 제외    
+    selected_stay_ids = []
+    for stay_id, group in data.groupby(stay_id_id):
+        if all(group['Annotation'] == 'circ'):
+            selected_stay_ids.append(stay_id)
+            
+    data = data[~(data[stay_id_id].isin(selected_stay_ids))].reset_index(drop=True)
+
     for stay_id in tqdm(data[stay_id_id].unique()):
         
         sample = data[data[stay_id_id]==stay_id]
@@ -60,11 +78,19 @@ def early_event_prediction_label(df):
     data = df.copy()
     data['classes'] = 'undefined'
 
-    class1 = data[(data['Shock_next_12h']==0) & ((data['Annotation']=='no_circ') | (data['Annotation']=='ambiguous'))].index
+    class1 = data[(data['Shock_next_12h']==0) & (data['Annotation']=='no_circ')].index
     data.loc[class1,'classes'] = 0
     
-    class2 = data[(data['Shock_next_12h']==1) & ((data['Annotation']=='no_circ') | (data['Annotation']=='ambiguous'))].index
-    data.loc[class2,'classes'] = 1
+    class_unde = data[(data['Shock_next_12h']==0) & (data['Annotation']=='ambiguous')].index
+    data.loc[class_unde,'classes'] = 'undefined'
+    
+    ## 모두 case 2에 해당하지만 적절한 학습을 위해 label을 다르게 부여
+    
+    class_ambcirc = data[(data['Shock_next_12h']==1) & (data['Annotation']=='ambiguous')].index
+    data.loc[class_ambcirc,'classes'] = 1
+    
+    class2 = data[(data['Shock_next_12h']==1) & (data['Annotation']=='no_circ')].index
+    data.loc[class2,'classes'] = 2
     
     return data.reset_index(drop=True)
 
@@ -82,7 +108,7 @@ def optimized_recovered_labeler(df, mode):
         for idx, row in stay_df.iterrows():
             if (row['Annotation'] == 'circ'):
                 current_time = row['Time_since_ICU_admission']
-                endpoint_window = current_time + 20
+                endpoint_window = current_time + 24
     
                 window = stay_df[(stay_df['Time_since_ICU_admission'] > current_time) & (stay_df['Time_since_ICU_admission'] <= endpoint_window)]
                 if len(window) > 0:
