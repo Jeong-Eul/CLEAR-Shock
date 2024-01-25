@@ -7,14 +7,24 @@ pd.set_option('mode.chained_assignment',  None)
 
 def filter_cohort(mimic, eicu):
     
-    filtered_stay_ids_m = mimic.groupby('stay_id').apply(lambda x: (x['Annotation'].str.startswith('no_circ')).any())
-    filtered_stay_ids_m = filtered_stay_ids_m[filtered_stay_ids_m].index
+    filtered_stay_ids = []
 
-    filtered_stay_ids_e = eicu.groupby('patientunitstayid').apply(lambda x: (x['Annotation'].str.startswith('no_circ')).any())
-    filtered_stay_ids_e = filtered_stay_ids_e[filtered_stay_ids_e].index
+    for stay_id, group in mimic.groupby('stay_id'):
+        if group['Annotation'].iloc[0] == 'no_circ':
+            filtered_stay_ids.append(stay_id)
+
+    filtered_stay_ids_array = np.array(filtered_stay_ids)
+    mimic = mimic[mimic['stay_id'].isin(filtered_stay_ids_array)].reset_index(drop=True)
     
-    mimic = mimic[mimic['stay_id'].isin(filtered_stay_ids_m)].reset_index(drop=True)
-    eicu = eicu[eicu['patientunitstayid'].isin(filtered_stay_ids_e)].reset_index(drop=True)
+    filtered_stay_ids = []
+
+    for stay_id, group in eicu.groupby('patientunitstayid'):
+        if group['Annotation'].iloc[0] == 'no_circ':
+            filtered_stay_ids.append(stay_id)
+
+    filtered_stay_ids_array = np.array(filtered_stay_ids)
+    eicu = eicu[eicu['patientunitstayid'].isin(filtered_stay_ids_array)].reset_index(drop=True)
+    
 
     mimic_circ_ids = mimic[(mimic['Annotation'] == 'circ') | (mimic['Annotation'] == 'ambiguous')]['stay_id'].unique()
     eicu_circ_ids = eicu[(eicu['Annotation'] == 'circ') | (eicu['Annotation'] == 'ambiguous')]['patientunitstayid'].unique()
@@ -32,7 +42,7 @@ def update_ambiguous_to_amb_circ(arr):
             if arr[i - 1] == 'circ' and 'circ' in arr[i + 1:]:
                 # Find the end of the 'ambiguous' sequence
                 end = i
-                while end < n and arr[end] == 'ambigouus':
+                while end < n and arr[end] == 'ambiguous':
                     end += 1
                 
                 # Update the 'ambiguous' sequence to 'amb_circ'
@@ -78,25 +88,30 @@ def early_event_prediction_label(df):
     data = df.copy()
     data['classes'] = 'undefined'
 
-    class1 = data[(data['Shock_next_12h']==0) & (data['Annotation']=='no_circ')].index
-    data.loc[class1,'classes'] = 0
-    
     class_unde = data[(data['Shock_next_12h']==0) & (data['Annotation']=='ambiguous')].index
-    data.loc[class_unde,'classes'] = 'undefined'
+    data.loc[class_unde,'classes'] = 0
+
+    class1 = data[(data['Shock_next_12h']==0) & (data['Annotation']=='no_circ')].index
+    data.loc[class1,'classes'] = 1
+    
+   
     
     ## 모두 case 2에 해당하지만 적절한 학습을 위해 label을 다르게 부여
     
     class_ambcirc = data[(data['Shock_next_12h']==1) & (data['Annotation']=='ambiguous')].index
-    data.loc[class_ambcirc,'classes'] = 1
+    data.loc[class_ambcirc,'classes'] = 2
     
     class2 = data[(data['Shock_next_12h']==1) & (data['Annotation']=='no_circ')].index
-    data.loc[class2,'classes'] = 2
+    data.loc[class2,'classes'] = 3
     
     return data.reset_index(drop=True)
 
 
 def optimized_recovered_labeler(df, mode):
     targ = df.copy(deep=True)
+    
+    amb_circ = targ[(targ['Shock_next_12h']==1) & (targ['Annotation']=='amb_circ')].index
+    targ.loc[amb_circ,'classes'] = 6
     
     if mode == 'mimic':
         stay_id_id = 'stay_id'
@@ -114,7 +129,7 @@ def optimized_recovered_labeler(df, mode):
                 if len(window) > 0:
 
                     counts = window['Annotation'].value_counts()
-                    count_amb_no_circ = counts.get('ambiguous', 0) + counts.get('no_circ', 0)
+                    count_amb_no_circ = counts.get('ambiguous', 0) + counts.get('no_circ', 0) + counts.get('amb_circ', 0)
                     count_amb_circ = counts.get('ambiguous', 0) + counts.get('circ', 0) + counts.get('amb_circ', 0)
                     total_state = len(window)
 
@@ -122,9 +137,9 @@ def optimized_recovered_labeler(df, mode):
                     no_recovery_ratio = count_amb_circ / total_state
 
                     if recovery_ratio >= 0.7 and counts.get('no_circ', 0) > 0:
-                        targ.loc[idx, 'classes'] = 2
+                        targ.loc[idx, 'classes'] = 4
                     elif no_recovery_ratio >= 0.7 and counts.get('circ', 0) > 0:
-                        targ.loc[idx, 'classes'] = 3
+                        targ.loc[idx, 'classes'] = 5
 
     return targ.reset_index(drop=True)
 
