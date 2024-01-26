@@ -23,7 +23,61 @@ def return_result_df():
     eicu_path = "/Users/DAHS/Desktop/eICU2.0_PREPROC/eICU-CIRC(12h).csv.gz"
 
     mimic, eicu = integration_source_target(mimic_path, eicu_path)
+    
+    
+    null_dict = {'NIBPs' : 125, 'HR' : 70, 'MAP' : 91.6,'O2 Sat (%)':95, 'PaO2/FiO2':400,
+            'NIBPd' : 75, 'Temperature': 36.5, 'RASS' : 0, 'ABPs': 125, 'PEEP' : 0, 'Peak Insp. Pressure':0,
+            'ABPd':75, 'CVP':4, 'EtCO2': 40, 'SVO2':70, 'SpO2': 95, 'Lactate':1.1,
+            'Creatinine':0.7, 'Glucose':5 , 'Potassium':4, 'PaCO2':40, 'Ca+':8.5, 'Hemoglobin':12,
+            'PaO2':75, 'Alkaline phosphatase':85, 'BUN':23, 'ALT':25, 'AST':25, 'FIO2 (%)':21, 'CO2':25, 'INR':1,
+            'Hematocrit':42, 'Platelets':300, 'WBC':10}
+    
+    columns_to_check = ['HR', 'ABPd', 'ABPs', 'Temperature', 'RASS',
+                        'PEEP', 'Peak Insp. Pressure', 'CVP', 'EtCO2','SpO2',
+                        'ABPd', 'MAP', 'FIO2 (%)', 'SVO2', 'Lactate', 'Creatinine',
+                        'Potassium', 'PaCO2', 'Ca+', 'PaO2', 'BUN', 'INR']
+    
+    
+    thresholds = {
+    'HR': (0, 300),
+    'ABPd': (10, 175),
+    'Temperature': (0, 70),
+    'RASS' : (-5, 4),
+    'ABPs': (10, 300),
+    'PEEP': (0, 9999),
+    'Peak Insp. Pressure': (5, 100),
+    'CVP': (0, 50),
+    'EtCO2': (0, 45),
+    'SpO2': (0, 100), 
+    'ABPd': (0, 120), 
+    'MAP': (0, 150), 
+    'FIO2 (%)': (0, 100),
+    'SVO2': (0, 85),
+    'Lactate': (0, 15),
+    'Creatinine':(0, 1500),
+    'Potassium' : (2, 12),
+    'PaCO2': (0, 1000),
+    'Ca+': (0, 3),
+    'PaO2': (0, 150),
+    'BUN': (0, 1000),
+    'INR': (0, 100),
+    'O2 Sat (%)' : (0, 300),
+    'PaO2/FiO2': (0, 1000)
+    }
 
+    for column in columns_to_check:
+        lower, upper = thresholds[column]
+        mask = (mimic[column] < lower) | (mimic[column] > upper)
+        mimic.loc[mask, column] = np.nan
+        mimic[column + '_fillna'] = mimic[column].isnull().astype(int)
+        mimic[column] = mimic[column].fillna(null_dict[column])
+        
+        mask = (eicu[column] < lower) | (eicu[column] > upper)
+        eicu.loc[mask, column] = np.nan
+        eicu[column + '_fillna'] = eicu[column].isnull().astype(int)
+        eicu[column] = eicu[column].fillna(null_dict[column])
+    
+    
     print('---Complete Integration---')
 
     mimic_v1 = make_derived_variable(mimic, 'mimic')

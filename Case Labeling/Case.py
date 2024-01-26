@@ -228,22 +228,22 @@ def del_noise(df, mode):
     
     print('step2 완료')
     
-    print('step3 한번이라도 circulatory failure event가 발생하지 않은 stay 제거')
-    sub_view = data[[stay_id_id, 'Time_since_ICU_admission', 'MAP', 'Lactate', 'vasoactive/inotropic','Annotation', 'Shock_next_12h', 'classes']]
+    # print('step3 한번이라도 circulatory failure event가 발생하지 않은 stay 제거')
+    # sub_view = data[[stay_id_id, 'Time_since_ICU_admission', 'MAP', 'Lactate', 'vasoactive/inotropic','Annotation', 'Shock_next_12h', 'classes']]
     
-    filtered_stay_ids = sub_view.groupby(stay_id_id).filter(lambda x: (x['Annotation'] == 'no_circ').all())
+    # filtered_stay_ids = sub_view.groupby(stay_id_id).filter(lambda x: (x['Annotation'] == 'no_circ').all())
 
-    unique_stay_ids = filtered_stay_ids[stay_id_id].unique()
+    # unique_stay_ids = filtered_stay_ids[stay_id_id].unique()
     
-    filtered_stay_ids_circ = sub_view.groupby(stay_id_id).filter(lambda x: ~x['Annotation'].str.contains(r'\bcirc\b', regex=True).any())
+    # filtered_stay_ids_circ = sub_view.groupby(stay_id_id).filter(lambda x: ~x['Annotation'].str.contains(r'\bcirc\b', regex=True).any())
     
-    unique_stay_ids_circ = filtered_stay_ids_circ[stay_id_id].unique()
+    # unique_stay_ids_circ = filtered_stay_ids_circ[stay_id_id].unique()
     
-    del_stayid = list(unique_stay_ids) + list(unique_stay_ids_circ)
+    # del_stayid = list(unique_stay_ids) + list(unique_stay_ids_circ)
     
-    print('step3 완료, 제거 stay 수',len(set(del_stayid)))
+    # print('step3 완료, 제거 stay 수',len(set(del_stayid)))
 
-    data = data[~(data[stay_id_id].isin(set(del_stayid)))].reset_index(drop=True)
+    # data = data[~(data[stay_id_id].isin(set(del_stayid)))].reset_index(drop=True)
     
     return data
 
