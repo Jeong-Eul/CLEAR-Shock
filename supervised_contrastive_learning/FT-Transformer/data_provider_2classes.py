@@ -14,72 +14,6 @@ import gc
 
 warnings.filterwarnings('ignore')
 
-def filter_classes_with_condition(df):
-    filtered_df = df[df['classes'].isin([0, 1, 3])]
-    return filtered_df
-
-def deterioration_filter_stay_ids(group):
-    
-    if all(group.head(3)['Annotation'] == 'no_circ'):
-        if all(group.tail(10)['classes'] == 3):
-            return True
-    return False
-
-def recovery_filter_stay_ids(group):
-    # 처음 3개 관측치의 Annotation이 모두 'no_circ'인 경우만 고려
-    if all(group.head(3)['Annotation'] == 'no_circ'):
-        # 'classes'가 2인 마지막 관측치 찾기
-        last_class_2_index = group[group['classes'] == 2].index.max()
-        if pd.notna(last_class_2_index):
-            # 해당 인덱스까지의 데이터 반환
-            return group.loc[:last_class_2_index]
-    return pd.DataFrame()
-
-def visual_df(df, mode):
-    
-    if mode == 'mimic':
-        patient_id = 'subject_id'
-        stay_id = 'stay_id'
-
-    else:
-        patient_id = 'uniquepid'
-        stay_id = 'patientunitstayid'
-
-    recovery_situation = {0, 1, 2, 3}
-    deterioration_situation = {0, 1, 3}
-
-        
-    recover_state = df[df['classes'].isin(recovery_situation)].groupby(stay_id)['classes'].nunique()
-    recover_state = recover_state[recover_state == len(recovery_situation)].index
-
-    recover_set = df[df[stay_id].isin(recover_state)]
-
-    deterioration_state = df[df['classes'].isin(deterioration_situation)].groupby(stay_id)['classes'].nunique()
-    deterioration_state = deterioration_state[deterioration_state == len(deterioration_situation)].index
-
-    deterioration_set = df[df[stay_id].isin(deterioration_state)]
-
-
-    deterioration_set = filter_classes_with_condition(deterioration_set)
-
-    deterioration_grouped = deterioration_set.groupby(stay_id)
-
-    # 조건을 만족하는 stay_id 필터링
-    valid_stay_ids = [name for name, group in deterioration_grouped if deterioration_filter_stay_ids(group)]
-    deterioration_df = deterioration_set[deterioration_set[stay_id].isin(valid_stay_ids)].copy()
-
-    recover_grouped = recover_set.groupby(stay_id)
-    
-     # 조건을 만족하는 데이터 필터링
-    recovery_df = pd.concat([recovery_filter_stay_ids(group) for _, group in recover_grouped])
-    
-    total_dataset = pd.concat([recovery_df, deterioration_df])
-    
-    return total_dataset.reset_index(drop=True)
-
-
-
-   
 
 def check_class_ratio(dataset):
     class_ratio = round(np.mean(dataset.classes), 4)
@@ -104,8 +38,8 @@ def data_split(df, seed, train_ratio, Threshold, n_trial, mode):
     for T in range(n_trial):
         array = data[patient_id].unique()
         
-        seed = np.random.randint(0, 10000, 1)
-        seed = 393
+        # seed = np.random.randint(0, 10000, 1)
+        seed = 7645
         np.random.seed(seed) 
         np.random.shuffle(array)
 
@@ -142,15 +76,16 @@ def data_split(df, seed, train_ratio, Threshold, n_trial, mode):
     test = holdout_test.copy()
     search_time_end = time.time()
     
-    trn_class1 = train.classes.value_counts()[0]
-    trn_class2 = train.classes.value_counts()[1]
-    trn_class3 = train.classes.value_counts()[2]
-    trn_class4 = train.classes.value_counts()[3]
     
-    tes_class1 = test.classes.value_counts()[0]
-    tes_class2 = test.classes.value_counts()[1]
-    tes_class3 = test.classes.value_counts()[2]
-    tes_class4 = test.classes.value_counts()[3]
+    trn_class1 = train.classes.value_counts()[1]
+    trn_class2 = train.classes.value_counts()[2]
+    trn_class3 = train.classes.value_counts()[3]
+    trn_class4 = train.classes.value_counts()[4]
+    
+    tes_class1 = test.classes.value_counts()[1]
+    tes_class2 = test.classes.value_counts()[2]
+    tes_class3 = test.classes.value_counts()[3]
+    tes_class4 = test.classes.value_counts()[4]
     
     
     print("========== 데이터셋 분할 정보 ==========")
@@ -164,12 +99,14 @@ def data_split(df, seed, train_ratio, Threshold, n_trial, mode):
         trn_class1/(trn_class1+trn_class2+trn_class3+trn_class4),
         trn_class2/(trn_class1+trn_class2+trn_class3+trn_class4),
         trn_class3/(trn_class1+trn_class2+trn_class3+trn_class4),
-        trn_class4/(trn_class1+trn_class2+trn_class3+trn_class4)))
+        trn_class4/(trn_class1+trn_class2+trn_class3+trn_class4)
+        ))
     print("테스트셋 클래스 비율: {:.2f}:{:.2f}:{:.2f}:{:.2f}".format(
         tes_class1/(tes_class1+tes_class2+tes_class3+tes_class4),
         tes_class2/(tes_class1+tes_class2+tes_class3+tes_class4),
         tes_class3/(tes_class1+tes_class2+tes_class3+tes_class4),
-        tes_class4/(tes_class1+tes_class2+tes_class3+tes_class4)))
+        tes_class4/(tes_class1+tes_class2+tes_class3+tes_class4),
+        ))
     print("--------------------------------------")
 
     print("========== 환자 및 체류 정보 ==========")
@@ -192,19 +129,20 @@ def data_split(df, seed, train_ratio, Threshold, n_trial, mode):
     return train.reset_index(drop=True), test.reset_index(drop=True)
 
 class TableDataset(Dataset):
-    def __init__(self,data_path,data_type,mode,seed, augmentation, visualization):
+    def __init__(self,data_path,data_type,mode,seed):
         self.data_path = data_path
         self.data_type = data_type # eicu or mimic
         self.mode = mode # train / valid / test
         self.target = 'classes'
         self.seed = seed
-        self.augmentation = augmentation
-        self.visualization = visualization
         self.df_num, self.df_cat, self.y = self.__prepare_data__()
 
     def __prepare_data__(self):
         df_raw = pd.read_csv(self.data_path, compression='gzip')
         print(len(df_raw))
+        
+        df_raw['classes'] = df_raw['classes'].replace({5:4, 6:4})
+        
         df_raw.replace([np.inf, -np.inf], np.nan, inplace=True)
         df_raw.fillna(0, inplace=True)
         
@@ -225,34 +163,8 @@ class TableDataset(Dataset):
                 
         scaler = MinMaxScaler()
         
-        if self.visualization == True :
-            
-            df = visual_df(df_raw, mode = self.data_type)
-            df_train, df_valid = data_split(df, self.seed, 0.7, 0.05, 1, mode = self.data_type)
-            
-        else:
-            df_train, df_valid = data_split(df_raw, self.seed, 0.7, 0.05, 1, mode = self.data_type)
+        df_train, df_valid = data_split(df_raw, self.seed, 0.7, 0.05, 1, mode = self.data_type)
         
-        if self.augmentation == True:
-            
-            df_class_0 = df_train[df_train['classes'] == 0]
-            df_class_1 = df_train[df_train['classes'] == 1]
-            df_class_2 = df_train[df_train['classes'] == 2]
-            df_class_3 = df_train[df_train['classes'] == 3]
-
-            max_size = df_class_3.shape[0]
-
-            df_class_1_upsampled = resample(df_class_1, replace=True, n_samples=max_size, random_state=123)
-            df_class_2_upsampled = resample(df_class_2, replace=True, n_samples=max_size, random_state=123)
-            df_class_3_upsampled = resample(df_class_3, replace=True, n_samples=max_size, random_state=123)
-
-            df_train = pd.concat([df_class_0, df_class_1_upsampled, df_class_2_upsampled, df_class_3_upsampled]).reset_index(drop=True)
-            
-            print("========== 클래스 비율 ==========")
-            print("학습셋 클래스 비율", df_train.classes.value_counts().sort_index())
-            
-        
-    
         # if dataset is eicu
         if self.data_type == 'mimic':
             if self.mode == "train":
