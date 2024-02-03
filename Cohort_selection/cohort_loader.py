@@ -36,7 +36,7 @@ def data_split(df, seed, train_ratio, Threshold, n_trial, mode):
         print("--------------------------------------")
 
         print("========== 클래스 비율 ==========")
-        print("학습셋 클래스 비율: {:.2f}:{:.2f}:{:.2f}:{:.2f}:{:.2f}:{:.2f}".format(
+        print("학습셋 클래스 비율: {:.2f}:{:.2f}:{:.2f}:{:.2f}".format(
             class1/(class1+class2+class3+class4),
             class2/(class1+class2+class3+class4),
             class3/(class1+class2+class3+class4),
