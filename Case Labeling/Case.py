@@ -4,33 +4,95 @@ from tqdm import tqdm
 
 pd.set_option('mode.chained_assignment',  None)
 
-
-def filter_cohort(mimic, eicu):
+def annotation(df, mode):
+    # DataFrame 복사본 생성
     
-    filtered_stay_ids = []
-
-    for stay_id, group in mimic.groupby('stay_id'):
-        if group['Annotation'].iloc[0] == 'no_circ':
-            filtered_stay_ids.append(stay_id)
-
-    filtered_stay_ids_array = np.array(filtered_stay_ids)
-    mimic = mimic[mimic['stay_id'].isin(filtered_stay_ids_array)].reset_index(drop=True)
+    if mode == 'mimic':
+        stay_id_id = 'stay_id'
+    elif mode == 'eicu':
+        stay_id_id = 'patientunitstayid'
     
-    filtered_stay_ids = []
+    targ = df.copy()
 
-    for stay_id, group in eicu.groupby('patientunitstayid'):
-        if group['Annotation'].iloc[0] == 'no_circ':
-            filtered_stay_ids.append(stay_id)
+    targ['Annotation'] = np.nan
+    for stay_id in tqdm(targ[stay_id_id].unique()):
+        stay_df = targ[targ[stay_id_id] == stay_id].sort_values(by='Time_since_ICU_admission')
 
-    filtered_stay_ids_array = np.array(filtered_stay_ids)
-    eicu = eicu[eicu['patientunitstayid'].isin(filtered_stay_ids_array)].reset_index(drop=True)
+        no_circ_cond = stay_df[(stay_df['MAP'] > 65.0) & (stay_df['vasoactive/inotropic'] == 0.0) & (stay_df['Lactate'] < 2)].index
+        circ_cond = stay_df[(stay_df['MAP'] <= 65.0) | (stay_df['vasoactive/inotropic'] == 1.0) & (stay_df['Lactate'] >= 2)].index
+        
+        targ.loc[no_circ_cond, 'Annotation'] = 'no_circ'
+        targ.loc[circ_cond, 'Annotation'] = 'circ'
+        
+        targ['Annotation'].fillna('ambiguous', inplace=True)
+
+    return targ.reset_index(drop=True)
+
+
+def optimized_shock_labeler(df, mode):
     
+    if mode == 'mimic':
+        stay_id_id = 'stay_id'
+    elif mode == 'eicu':
+        stay_id_id = 'patientunitstayid'
+    
+    targ = df.copy()
+    targ['Shock_next_8h'] = np.nan
+  
+    for stay_id in tqdm(targ[stay_id_id].unique()):
+        stay_df = targ[targ[stay_id_id] == stay_id].sort_values(by='Time_since_ICU_admission')
+        stay_df['endpoint_window'] = stay_df['Time_since_ICU_admission'] + 8
 
-    mimic_circ_ids = mimic[(mimic['Annotation'] == 'circ') | (mimic['Annotation'] == 'ambiguous')]['stay_id'].unique()
-    eicu_circ_ids = eicu[(eicu['Annotation'] == 'circ') | (eicu['Annotation'] == 'ambiguous')]['patientunitstayid'].unique()
- 
-    return mimic[mimic['stay_id'].isin(mimic_circ_ids)].reset_index(drop=True), eicu[eicu['patientunitstayid'].isin(eicu_circ_ids)].reset_index(drop=True)
+        for idx, row in stay_df.iterrows():
+            current_time = row['Time_since_ICU_admission']
+            endpoint_window = row['endpoint_window']
 
+       
+            future_rows = stay_df[(stay_df['Time_since_ICU_admission'] > current_time) & (stay_df['Time_since_ICU_admission'] <= endpoint_window)]
+
+            if any(future_rows['Annotation'] == 'circ'):
+                targ.loc[idx, 'Shock_next_8h'] = 1
+            else:
+                targ.loc[idx, 'Shock_next_8h'] = 0
+
+    return targ.reset_index(drop=True)
+
+def get_case2(target, case1_stay_ids, event='circ', mode = 'mimic'):
+    
+    data = target.copy()
+    
+    split_data = []
+    current_part = []
+    event_occurred = False
+    
+    if mode == 'mimic':
+        stay_id = 'stay_id'
+    else:
+        stay_id = 'patientunitstayid'
+        
+    search_stay_id = set(data[stay_id].unique()) - set(case1_stay_ids)
+    
+    for stayid in search_stay_id:
+        dataset = data[data[stay_id]==stayid]
+        
+        for index, row in dataset.iterrows():
+            
+            if event_occurred:
+                event_occurred = False
+                break
+                        
+            else:
+                current_part.append(row)
+                if row['Annotation']==event:
+                    split_data.append(pd.DataFrame(current_part))
+                    event_occurred = True
+                    current_part = []
+            
+        if current_part:
+            split_data.append(pd.DataFrame(current_part))
+            current_part = []
+
+    return pd.concat(split_data).reset_index(drop=True)
 
 def update_ambiguous_to_amb_circ(arr):
     updated_arr = np.array(arr, copy=True)
@@ -53,95 +115,304 @@ def update_ambiguous_to_amb_circ(arr):
 
     return updated_arr
 
+# def get_case3_case4(df, mode, case1_stay_ids):
+#     targ = df.copy(deep=True)
+    
+#     if mode == 'mimic':
+#         stay_id_id = 'stay_id'
+#     elif mode == 'eicu':
+#         stay_id_id = 'patientunitstayid'
+        
+#     search_stay_id = set(targ[stay_id_id].unique()) - set(case1_stay_ids)
+    
+#     for stay_id in tqdm(search_stay_id):
+#         stay_df = targ[targ[stay_id_id] == stay_id].sort_values(by='Time_since_ICU_admission')
+        
+#         sample = stay_df[stay_df[stay_id_id]==stay_id]
+        
+#         index = sample.index
+#         annotation_arr = sample['Annotation'].values
 
-def define_ambcirc(df, mode):
-    data = df.copy()
+#         new_annotation_arr = update_ambiguous_to_amb_circ(annotation_arr)
+#         stay_df['Annotation'].loc[index] = new_annotation_arr
+        
+#         for idx, row in stay_df.iterrows():
+#             if (row['Annotation'] == 'circ')|(row['Annotation'] == 'amb_circ'):
+#                 current_time = row['Time_since_ICU_admission']
+#                 endpoint_window = current_time + 24
+    
+#                 window = stay_df[(stay_df['Time_since_ICU_admission'] > current_time) & (stay_df['Time_since_ICU_admission'] <= endpoint_window)]
+#                 if len(window) > 0:
+
+#                     counts = window['Annotation'].value_counts()
+#                     count_amb_no_circ = counts.get('ambiguous', 0) + counts.get('no_circ', 0) + counts.get('amb_circ', 0)
+#                     count_amb_circ = counts.get('ambiguous', 0) + counts.get('circ', 0) + counts.get('amb_circ', 0)
+#                     total_state = len(window)
+
+#                     recovery_ratio = count_amb_no_circ / total_state
+#                     no_recovery_ratio = count_amb_circ / total_state
+
+#                     if recovery_ratio >= 0.7 and counts.get('no_circ', 0) > 0:
+#                         targ.loc[idx, 'Case'] = 3
+#                     elif no_recovery_ratio >= 0.7 and counts.get('circ', 0) > 0:
+#                         targ.loc[idx, 'Case'] = 4
+                
+#     return targ.dropna().reset_index(drop=True)
+
+def get_case3_4(target, case1_stay_ids, mode = 'mimic'):
+    
+    data = target.copy()
+    
+    split_data = []
+    current_part = []
+    event_occurred = False
     
     if mode == 'mimic':
         stay_id_id = 'stay_id'
-    elif mode == 'eicu':
+    else:
         stay_id_id = 'patientunitstayid'
-    
-    # 모든 stay가 circ인 경우 제외    
-    selected_stay_ids = []
+        
+    all_circ_stay_ids = []
     for stay_id, group in data.groupby(stay_id_id):
         if all(group['Annotation'] == 'circ'):
-            selected_stay_ids.append(stay_id)
-            
-    data = data[~(data[stay_id_id].isin(selected_stay_ids))].reset_index(drop=True)
-
-    for stay_id in tqdm(data[stay_id_id].unique()):
-        
-        sample = data[data[stay_id_id]==stay_id]
-        
-        index = sample.index
-        annotation_arr = sample['Annotation'].values
-        
-        new_annotation_arr = update_ambiguous_to_amb_circ(annotation_arr)
-        data['Annotation'].loc[index] = new_annotation_arr
-        
-    return data.reset_index(drop=True)
-
-
-def early_event_prediction_label(df):
+            all_circ_stay_ids.append(stay_id)
     
+        
+    search_stay_id = set(data[stay_id_id].unique()) - set(case1_stay_ids) - set(all_circ_stay_ids)
+    
+    for stayid in search_stay_id:
+        dataset = data[data[stay_id_id]==stayid]
+        
+        for index, row in dataset.iterrows():
+            
+            if event_occurred:
+                current_part.append(row)
+                if row['Annotation']=='no_circ':
+                    split_data.append(pd.DataFrame(current_part))
+                    event_occurred = False
+                    current_part = []
+                    break
+                elif index == dataset.index[-1]:
+                    if row['Annotation'] == 'ambiguous':
+                        event_occurred = False
+                        current_part = []
+                        break
+                    
+            else:
+                if row['Annotation']=='circ':
+                    event_occurred = True
+
+    return split_data
+
+
+def recov_Annotation(case3_case4_parts):
+    targ = case3_case4_parts.copy()
+    update_parts = []
+
+    for stay_trajectory in tqdm(targ):
+        
+        stay_trajectory['progress'] = np.nan
+        
+        true_measurements_lactate = stay_trajectory['Lactate'].unique()
+        true_measurements_lactate_index = []
+        
+        for value in true_measurements_lactate:
+            first_occurrence_index = stay_trajectory[stay_trajectory['Lactate'] == value].index[0]
+            true_measurements_lactate_index.append(first_occurrence_index)
+        
+        #init
+        
+        anchor_lactate = true_measurements_lactate[0]
+        count_change = 0
+        
+        # true_measurements_lactate_index = [0, 1, 2, 3]
+        # true_measurements_lactate = [(1.2 masking), 1.2, 2.0, 1.4, 0.7]
+        
+        lactate_count_dict = {element: index+1 for index, element in enumerate(true_measurements_lactate)}
+        
+        for idx, row in stay_trajectory.iterrows():
+            
+            #LACTATE COND
+            current_lactate = row['Lactate']
+                
+            if lactate_count_dict[current_lactate] - count_change == 1:
+                lactate_decrease = current_lactate < anchor_lactate
+            
+            elif current_lactate != anchor_lactate:
+                count_change += 1
+                lactate_decrease = current_lactate < anchor_lactate #바뀌는 순간은 그대로 계산해도 됨
+                for key, value in lactate_count_dict.items():
+                    if value == count_change:
+                        anchor_lactate = key
+                
+            #MAP COND
+            map_increase = (row['MAP_change_5h'] < 0)&(row['MAP'] >= 65) #상승 했으면 음 값임 더불어 65 이상으로 상승해야 함
+
+            recov_cond = (map_increase) & (lactate_decrease)
+            
+            # Annotation
+            
+            if recov_cond:
+                stay_trajectory.at[idx, 'progress'] = 'recov'
+            else :
+                stay_trajectory.at[idx, 'progress'] = 'not_recov'
+                
+        update_parts.append(stay_trajectory)
+
+    return update_parts
+
+
+def Case_definetion(df, mode):
     data = df.copy()
-    data['classes'] = 'undefined'
+    data['Case'] = np.nan
+    
+    if mode == 'mimic':
+        print('Start MIMIC-IV process')
+        stay_id_id = 'stay_id'
+    elif mode == 'eicu':
+        print('Start eICU-CRD process')
+        stay_id_id = 'patientunitstayid'
+    
+    case1_stay_ids = []
+    for stay_id, group in data.groupby(stay_id_id):
+        if all(group['Annotation'] == 'no_circ'):
+            case1_stay_ids.append(stay_id)
+    
+    print('Extract Case 1, Case 2')        
+    case2 = get_case2(data, case1_stay_ids, event='circ', mode = mode)
+    case2['Case'] = 2  
+    idx = case2[(case2['Annotation']=='no_circ')&(case2['Shock_next_8h']==0)].index
+    case1_case2 = case2.copy()
+    case1_case2['Case'].loc[idx] = 1
+    
+    print('--------------')
+    
+    print('Extract Case 3, Case 4')        
+    case3_4 = get_case3_4(data, case1_stay_ids, mode)
+    case3_4 = recov_Annotation(case3_4)
+    #수정중
+    print('--------------')
+    print('Finish, ....')
+        
+    return case1_case2, case3_4
 
-    class_unde = data[(data['Shock_next_12h']==0) & (data['Annotation']=='ambiguous')].index
-    data.loc[class_unde,'classes'] = 0
 
-    class1 = data[(data['Shock_next_12h']==0) & (data['Annotation']=='no_circ')].index
-    data.loc[class1,'classes'] = 1
+# def filter_cohort(mimic, eicu):
+    
+#     filtered_stay_ids = []
+
+#     for stay_id, group in mimic.groupby('stay_id'):
+#         if group['Annotation'].iloc[0] == 'no_circ':
+#             filtered_stay_ids.append(stay_id)
+
+#     filtered_stay_ids_array = np.array(filtered_stay_ids)
+#     mimic = mimic[mimic['stay_id'].isin(filtered_stay_ids_array)].reset_index(drop=True)
+    
+#     filtered_stay_ids = []
+
+#     for stay_id, group in eicu.groupby('patientunitstayid'):
+#         if group['Annotation'].iloc[0] == 'no_circ':
+#             filtered_stay_ids.append(stay_id)
+
+#     filtered_stay_ids_array = np.array(filtered_stay_ids)
+#     eicu = eicu[eicu['patientunitstayid'].isin(filtered_stay_ids_array)].reset_index(drop=True)
+    
+
+#     mimic_circ_ids = mimic[(mimic['Annotation'] == 'circ') | (mimic['Annotation'] == 'ambiguous')]['stay_id'].unique()
+#     eicu_circ_ids = eicu[(eicu['Annotation'] == 'circ') | (eicu['Annotation'] == 'ambiguous')]['patientunitstayid'].unique()
+ 
+#     return mimic[mimic['stay_id'].isin(mimic_circ_ids)].reset_index(drop=True), eicu[eicu['patientunitstayid'].isin(eicu_circ_ids)].reset_index(drop=True)
+
+
+
+# def define_ambcirc(df, mode):
+#     data = df.copy()
+    
+#     if mode == 'mimic':
+#         stay_id_id = 'stay_id'
+#     elif mode == 'eicu':
+#         stay_id_id = 'patientunitstayid'
+    
+#     # 모든 stay가 circ인 경우 제외    
+#     selected_stay_ids = []
+#     for stay_id, group in data.groupby(stay_id_id):
+#         if all(group['Annotation'] == 'circ'):
+#             selected_stay_ids.append(stay_id)
+            
+#     data = data[~(data[stay_id_id].isin(selected_stay_ids))].reset_index(drop=True)
+
+#     for stay_id in tqdm(data[stay_id_id].unique()):
+        
+#         sample = data[data[stay_id_id]==stay_id]
+        
+#         index = sample.index
+#         annotation_arr = sample['Annotation'].values
+        
+#         new_annotation_arr = update_ambiguous_to_amb_circ(annotation_arr)
+#         data['Annotation'].loc[index] = new_annotation_arr
+        
+#     return data.reset_index(drop=True)
+
+
+# def early_event_prediction_label(df):
+    
+#     data = df.copy()
+#     data['classes'] = 'undefined'
+
+#     class_unde = data[(data['Shock_next_12h']==0) & (data['Annotation']=='ambiguous')].index
+#     data.loc[class_unde,'classes'] = 0
+
+#     class1 = data[(data['Shock_next_12h']==0) & (data['Annotation']=='no_circ')].index
+#     data.loc[class1,'classes'] = 1
     
    
     
-    ## 모두 case 2에 해당하지만 적절한 학습을 위해 label을 다르게 부여
+#     ## 모두 case 2에 해당하지만 적절한 학습을 위해 label을 다르게 부여
     
-    class_ambcirc = data[(data['Shock_next_12h']==1) & (data['Annotation']=='ambiguous')].index
-    data.loc[class_ambcirc,'classes'] = 2
+#     class_ambcirc = data[(data['Shock_next_12h']==1) & (data['Annotation']=='ambiguous')].index
+#     data.loc[class_ambcirc,'classes'] = 2
     
-    class2 = data[(data['Shock_next_12h']==1) & (data['Annotation']=='no_circ')].index
-    data.loc[class2,'classes'] = 3
+#     class2 = data[(data['Shock_next_12h']==1) & (data['Annotation']=='no_circ')].index
+#     data.loc[class2,'classes'] = 3
     
-    return data.reset_index(drop=True)
+#     return data.reset_index(drop=True)
 
 
-def optimized_recovered_labeler(df, mode):
-    targ = df.copy(deep=True)
+# def optimized_recovered_labeler(df, mode):
+#     targ = df.copy(deep=True)
     
-    amb_circ = targ[(targ['Shock_next_12h']==1) & (targ['Annotation']=='amb_circ')].index
-    targ.loc[amb_circ,'classes'] = 6
+#     amb_circ = targ[(targ['Shock_next_12h']==1) & (targ['Annotation']=='amb_circ')].index
+#     targ.loc[amb_circ,'classes'] = 6
     
-    if mode == 'mimic':
-        stay_id_id = 'stay_id'
-    elif mode == 'eicu':
-        stay_id_id = 'patientunitstayid'
+#     if mode == 'mimic':
+#         stay_id_id = 'stay_id'
+#     elif mode == 'eicu':
+#         stay_id_id = 'patientunitstayid'
     
-    for stay_id in tqdm(targ[stay_id_id].unique()):
-        stay_df = targ[targ[stay_id_id] == stay_id].sort_values(by='Time_since_ICU_admission')
-        for idx, row in stay_df.iterrows():
-            if (row['Annotation'] == 'circ'):
-                current_time = row['Time_since_ICU_admission']
-                endpoint_window = current_time + 24
+#     for stay_id in tqdm(targ[stay_id_id].unique()):
+#         stay_df = targ[targ[stay_id_id] == stay_id].sort_values(by='Time_since_ICU_admission')
+#         for idx, row in stay_df.iterrows():
+#             if (row['Annotation'] == 'circ'):
+#                 current_time = row['Time_since_ICU_admission']
+#                 endpoint_window = current_time + 24
     
-                window = stay_df[(stay_df['Time_since_ICU_admission'] > current_time) & (stay_df['Time_since_ICU_admission'] <= endpoint_window)]
-                if len(window) > 0:
+#                 window = stay_df[(stay_df['Time_since_ICU_admission'] > current_time) & (stay_df['Time_since_ICU_admission'] <= endpoint_window)]
+#                 if len(window) > 0:
 
-                    counts = window['Annotation'].value_counts()
-                    count_amb_no_circ = counts.get('ambiguous', 0) + counts.get('no_circ', 0) + counts.get('amb_circ', 0)
-                    count_amb_circ = counts.get('ambiguous', 0) + counts.get('circ', 0) + counts.get('amb_circ', 0)
-                    total_state = len(window)
+#                     counts = window['Annotation'].value_counts()
+#                     count_amb_no_circ = counts.get('ambiguous', 0) + counts.get('no_circ', 0) + counts.get('amb_circ', 0)
+#                     count_amb_circ = counts.get('ambiguous', 0) + counts.get('circ', 0) + counts.get('amb_circ', 0)
+#                     total_state = len(window)
 
-                    recovery_ratio = count_amb_no_circ / total_state
-                    no_recovery_ratio = count_amb_circ / total_state
+#                     recovery_ratio = count_amb_no_circ / total_state
+#                     no_recovery_ratio = count_amb_circ / total_state
 
-                    if recovery_ratio >= 0.7 and counts.get('no_circ', 0) > 0:
-                        targ.loc[idx, 'classes'] = 4
-                    elif no_recovery_ratio >= 0.7 and counts.get('circ', 0) > 0:
-                        targ.loc[idx, 'classes'] = 5
+#                     if recovery_ratio >= 0.7 and counts.get('no_circ', 0) > 0:
+#                         targ.loc[idx, 'classes'] = 4
+#                     elif no_recovery_ratio >= 0.7 and counts.get('circ', 0) > 0:
+#                         targ.loc[idx, 'classes'] = 5
 
-    return targ.reset_index(drop=True)
+#     return targ.reset_index(drop=True)
 
 
 def find_invalid_columns(df):
