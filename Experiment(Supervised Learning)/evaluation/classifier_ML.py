@@ -17,25 +17,20 @@ import pandas as pd
 import numpy as np
 
 
-def classifier(algorithm, x, y, x_valid, x_test, valid_output, test_output):
+def classifier(algorithm, x, y, x_valid, valid_output):
     
     if algorithm == 'lgbm':
-        lgbm_wrapper = LGBMClassifier(n_estimators=100, random_state=42, extra_trees = True, verbose=-1)
+        lgbm_wrapper = LGBMClassifier(n_estimators=80, random_state=42, extra_trees = True, verbose=-1)
         lgbm_wrapper.fit(x, y)
         
         valid_preds = lgbm_wrapper.predict(x_valid)
         valid_output['prediction_label'] = valid_preds
         valid_output['prediction_prob'] = lgbm_wrapper.predict_proba(x_valid)[:, 1]
-
-        test_preds = lgbm_wrapper.predict(x_test)
-        test_output['prediction_label'] = test_preds
-        test_output['prediction_prob'] = lgbm_wrapper.predict_proba(x_test)[:, 1]
-        
     
-        return lgbm_wrapper, valid_output, test_output
+        return lgbm_wrapper, valid_output
     
     elif algorithm == 'xgb':
-        xgbm = XGBClassifier(n_estimators=100, random_state=42)
+        xgbm = XGBClassifier(n_estimators=80, random_state=42)
         xgbm.fit(x, y-1)
         
         valid_preds = xgbm.predict(x_valid)
@@ -43,27 +38,17 @@ def classifier(algorithm, x, y, x_valid, x_test, valid_output, test_output):
         valid_output['prediction_prob'] = xgbm.predict_proba(x_valid)[:, 1]
         valid_output['prediction_label'] = valid_output['prediction_label']+1
         
-        
-        test_preds = xgbm.predict(x_test)
-        test_output['prediction_label'] = test_preds
-        test_output['prediction_prob'] = xgbm.predict_proba(x_test)[:, 1]
-        test_output['prediction_label'] = test_output['prediction_label']+1
-        
-        return xgbm, valid_output, test_output
+        return xgbm, valid_output
     
     elif algorithm == 'rf':
-        rf = RandomForestClassifier(n_estimators=100, random_state=42)
+        rf = RandomForestClassifier(n_estimators=80, random_state=42)
         rf.fit(x, y)
         
         valid_preds = rf.predict(x_valid)
         valid_output['prediction_label'] = valid_preds
         valid_output['prediction_prob'] = rf.predict_proba(x_valid)[:, 1]
 
-        test_preds = rf.predict(x_test)
-        test_output['prediction_label'] = test_preds
-        test_output['prediction_prob'] = rf.predict_proba(x_test)[:, 1]
-        
-        return rf, valid_output, test_output
+        return rf, valid_output
     
     elif algorithm == 'dt':
     
@@ -71,10 +56,7 @@ def classifier(algorithm, x, y, x_valid, x_test, valid_output, test_output):
         valid_preds = tree.predict(x_valid)
         valid_output['prediction_label'] = valid_preds
 
-        test_preds = tree.predict(x_test)
-        test_output['prediction_label'] = test_preds
-        
-        return tree, valid_output, test_output
+        return tree, valid_output
     
     elif algorithm == 'lr':
         logit_regression = LogisticRegression(random_state = 42) 
@@ -83,27 +65,9 @@ def classifier(algorithm, x, y, x_valid, x_test, valid_output, test_output):
         valid_preds = logit_regression.predict(x_valid)
         valid_output['prediction_label'] = valid_preds
         valid_output['prediction_prob'] = logit_regression.predict_proba(x_valid)[:, 1]
-
-        test_preds = logit_regression.predict(x_test)
-        test_output['prediction_label'] = test_preds
-        test_output['prediction_prob'] = logit_regression.predict_proba(x_test)[:, 1]
         
-        return logit_regression, valid_output, test_output
+        return logit_regression, valid_output
     
-def acc_pr_recall(valid_output_target, test_output_target):
-
-    print('MIMIC')
-    print('Accuracy: %.3f' % accuracy_score(valid_output_target.Case, valid_output_target.prediction_label))
-    print('Precision: %.3f' % precision_score(valid_output_target.Case, valid_output_target.prediction_label))
-    print('Recall: %.3f' % recall_score(valid_output_target.Case, valid_output_target.prediction_label))
-    print('f1: %.3f' % f1_score(valid_output_target.Case, valid_output_target.prediction_label))
-    print('--')
-    print('eICU')
-    print('Accuracy: %.3f' % accuracy_score(test_output_target.Case, test_output_target.prediction_label))
-    print('Precision: %.3f' % precision_score(test_output_target.Case, test_output_target.prediction_label))
-    print('Recall: %.3f' % recall_score(test_output_target.Case, test_output_target.prediction_label))
-    print('f1: %.3f' % f1_score(test_output_target.Case, test_output_target.prediction_label))
-
 
 def event_metric(event,inference_output,mode, model_name):
    

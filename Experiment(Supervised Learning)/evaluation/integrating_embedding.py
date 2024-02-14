@@ -15,6 +15,17 @@ if module_path not in sys.path:
     sys.path.append(module_path)
 
 from cohort_loader import *
+from eicu_year_process import *
+
+module_path='/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/evaluation/'
+if module_path not in sys.path:
+    sys.path.append(module_path)
+    
+import get_hospital_eicu
+
+from imp import reload
+reload(get_hospital_eicu)
+
 
 mimic_data_dir = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis.csv.gz'
 eicu_data_dir = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/eicu_analysis.csv.gz'
@@ -61,6 +72,8 @@ def integrating(data_path, emb_path_trn, emb_path_vld, emb_path_event, mode):
     
     
     if mode == 'eicu': 
+        data = eicu_year_process.matching_patient(data)
+        
         dataset = data[~(data['gender']==2)].reset_index(drop=True)
         dataset.replace([np.inf, -np.inf], np.nan, inplace=True)
         dataset.fillna(0, inplace=True) 
@@ -77,7 +90,9 @@ def integrating(data_path, emb_path_trn, emb_path_vld, emb_path_event, mode):
         
         emb_integ = pd.concat([dataset.reset_index(drop=True), embedding], axis = 1)
         
-        return emb_integ, eventset
+        hosp_id, emb_integ = get_hospital_eicu.hospital(emb_integ)
+        
+        return emb_integ, eventset, hosp_id
         
     else:    
         dataset = data[~(data['gender']==2)].reset_index(drop=True)
