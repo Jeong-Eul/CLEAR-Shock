@@ -11,6 +11,12 @@ import random
 from sklearn.utils import resample
 import time
 import gc
+import sys
+module_path='/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Cohort_selection/Finetune/'
+if module_path not in sys.path:
+    sys.path.append(module_path)
+
+import eicu_year_process
 
 warnings.filterwarnings('ignore')
 
@@ -260,7 +266,7 @@ class TableDataset(Dataset):
     def __init__(self,data_path,data_type,mode,seed):
         self.data_path = data_path
         self.data_type = data_type # eicu or mimic
-        self.mode = mode # train / valid / test
+        self.mode = mode # train / valid / test / fine
         self.target = 'Case'
         self.seed = seed
         self.df_num, self.df_cat, self.y = self.__prepare_data__()
@@ -284,7 +290,6 @@ class TableDataset(Dataset):
         
         scaler = MinMaxScaler()
         
-        # if dataset is eicu
         if self.data_type == 'mimic':
             
             self.cat_features = []
@@ -321,33 +326,71 @@ class TableDataset(Dataset):
         # if dataset is eicu
         else:
             
-            mimic = pd.read_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis.csv.gz', compression='gzip')
-            mimic = mimic.drop('Shock_next_12h', axis = 1)
-            self.cat_features = []
-            self.num_features = []
+            df_raw = eicu_year_process.matching_patient(df_raw)
+            
+            if self.mode == 'fine':
         
-            for col in mimic.columns:
-                if mimic[col].nunique() == 2:
-                    self.cat_features.append(col)
-                else:
-                    self.num_features.append(col)
-                    
-                    
-            X_num_standard = mimic[self.num_features].drop(['Case', 'stay_id', 'subject_id','hadm_id','ethnicity', 'Annotation'], axis = 1)
-            scaler.fit(X_num_standard)
+                df_raw = df_raw[df_raw['hospitaldischargeyear']==2014]
+                
+                mimic = pd.read_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis.csv.gz', compression='gzip')
+                mimic = mimic.drop('Shock_next_12h', axis = 1)
+                self.cat_features = []
+                self.num_features = []
             
-            to_remove = ['stay_id', 'subject_id', 'hadm_id','ethnicity', 'Case', 'Annotation']
+                for col in mimic.columns:
+                    if mimic[col].nunique() == 2:
+                        self.cat_features.append(col)
+                    else:
+                        self.num_features.append(col)
+                        
+                        
+                X_num_standard = mimic[self.num_features].drop(['Case', 'stay_id', 'subject_id','hadm_id','ethnicity', 'Annotation'], axis = 1)
+                scaler.fit(X_num_standard)
+                
+                to_remove = ['stay_id', 'subject_id', 'hadm_id','ethnicity', 'Case', 'Annotation']
 
-            for item in to_remove:
-                if item in self.num_features:
-                    self.num_features.remove(item)
+                for item in to_remove:
+                    if item in self.num_features:
+                        self.num_features.remove(item)
+                
+                X_num_standard = df_raw[self.num_features]
+                X_num_scaled = scaler.transform(X_num_standard)
+                X_num = pd.DataFrame(X_num_scaled,columns = X_num_standard.columns)
+                X_cat = df_raw[self.cat_features].drop(['Shock_next_8h','INDEX'], axis = 1)
+                y = df_raw[self.target]
+                return X_num, X_cat, y
             
-            X_num_standard = df_raw[self.num_features]
-            X_num_scaled = scaler.transform(X_num_standard)
-            X_num = pd.DataFrame(X_num_scaled,columns = X_num_standard.columns)
-            X_cat = df_raw[self.cat_features].drop(['Shock_next_8h','INDEX'], axis = 1)
-            y = df_raw[self.target]
-            return X_num, X_cat, y
+            else:
+
+                df_raw = df_raw[df_raw['hospitaldischargeyear']==2015]
+                
+                mimic = pd.read_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis.csv.gz', compression='gzip')
+                mimic = mimic.drop('Shock_next_12h', axis = 1)
+                self.cat_features = []
+                self.num_features = []
+            
+                for col in mimic.columns:
+                    if mimic[col].nunique() == 2:
+                        self.cat_features.append(col)
+                    else:
+                        self.num_features.append(col)
+                        
+                        
+                X_num_standard = mimic[self.num_features].drop(['Case', 'stay_id', 'subject_id','hadm_id','ethnicity', 'Annotation'], axis = 1)
+                scaler.fit(X_num_standard)
+                
+                to_remove = ['stay_id', 'subject_id', 'hadm_id','ethnicity', 'Case', 'Annotation']
+
+                for item in to_remove:
+                    if item in self.num_features:
+                        self.num_features.remove(item)
+                
+                X_num_standard = df_raw[self.num_features]
+                X_num_scaled = scaler.transform(X_num_standard)
+                X_num = pd.DataFrame(X_num_scaled,columns = X_num_standard.columns)
+                X_cat = df_raw[self.cat_features].drop(['Shock_next_8h','INDEX'], axis = 1)
+                y = df_raw[self.target]
+                return X_num, X_cat, y
 
     def __getitem__(self,index):
       
@@ -379,7 +422,7 @@ class EventDataset(Dataset):
         
         df_raw = df_raw[(df_raw['Case']=='event')]
         df_raw['Case'] = df_raw['Case'].replace({'event':2})
-
+        
         if self.data_type == 'mimic':
             stay = 'stay_id'
         elif self.data_type == 'eicu':
@@ -390,31 +433,65 @@ class EventDataset(Dataset):
         mimic = pd.read_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis.csv.gz', compression='gzip')
         mimic = mimic.drop('Shock_next_12h', axis = 1)
         mimic = mimic[~(mimic['Case']=='event')]
-        self.cat_features = []
-        self.num_features = []
-    
-        for col in mimic.columns:
-            if mimic[col].nunique() == 2:
-                self.cat_features.append(col)
-            else:
-                self.num_features.append(col)
-                
-                
-        X_num_standard = mimic[self.num_features].drop(['Case', 'stay_id', 'subject_id','hadm_id','ethnicity', 'Annotation'], axis = 1)
-        scaler.fit(X_num_standard)
         
-        to_remove = ['stay_id', 'subject_id', 'hadm_id','ethnicity', 'Case', 'Annotation']
+        if self.data_type == 'mimic':
+        
+            self.cat_features = []
+            self.num_features = []
+        
+            for col in mimic.columns:
+                if mimic[col].nunique() == 2:
+                    self.cat_features.append(col)
+                else:
+                    self.num_features.append(col)
+                    
+                    
+            X_num_standard = mimic[self.num_features].drop(['Case', 'stay_id', 'subject_id','hadm_id','ethnicity', 'Annotation'], axis = 1)
+            scaler.fit(X_num_standard)
+            
+            to_remove = ['stay_id', 'subject_id', 'hadm_id','ethnicity', 'Case', 'Annotation']
 
-        for item in to_remove:
-            if item in self.num_features:
-                self.num_features.remove(item)
+            for item in to_remove:
+                if item in self.num_features:
+                    self.num_features.remove(item)
+            
+            X_num_standard = df_raw[self.num_features]
+            X_num_scaled = scaler.transform(X_num_standard)
+            X_num = pd.DataFrame(X_num_scaled,columns = X_num_standard.columns)
+            X_cat = df_raw[self.cat_features].drop(['Shock_next_8h','INDEX'], axis = 1)
+            y = df_raw[self.target]
+            return X_num, X_cat, y
         
-        X_num_standard = df_raw[self.num_features]
-        X_num_scaled = scaler.transform(X_num_standard)
-        X_num = pd.DataFrame(X_num_scaled,columns = X_num_standard.columns)
-        X_cat = df_raw[self.cat_features].drop(['Shock_next_8h','INDEX'], axis = 1)
-        y = df_raw[self.target]
-        return X_num, X_cat, y
+        elif self.data_type == 'eicu':
+            df_raw = eicu_year_process.matching_patient(df_raw)
+            df_raw = df_raw[df_raw['hospitaldischargeyear']==2015]
+            df_raw['Case'] = df_raw['Case'].map({'event':2})
+            
+            self.cat_features = []
+            self.num_features = []
+        
+            for col in mimic.columns:
+                if mimic[col].nunique() == 2:
+                    self.cat_features.append(col)
+                else:
+                    self.num_features.append(col)
+                    
+                    
+            X_num_standard = mimic[self.num_features].drop(['Case', 'stay_id', 'subject_id','hadm_id','ethnicity', 'Annotation'], axis = 1)
+            scaler.fit(X_num_standard)
+            
+            to_remove = ['stay_id', 'subject_id', 'hadm_id','ethnicity', 'Case', 'Annotation']
+
+            for item in to_remove:
+                if item in self.num_features:
+                    self.num_features.remove(item)
+            
+            X_num_standard = df_raw[self.num_features]
+            X_num_scaled = scaler.transform(X_num_standard)
+            X_num = pd.DataFrame(X_num_scaled,columns = X_num_standard.columns)
+            X_cat = df_raw[self.cat_features].drop(['Shock_next_8h','INDEX'], axis = 1)
+            y = df_raw[self.target]
+            return X_num, X_cat, y
 
     def __getitem__(self,index):
       
