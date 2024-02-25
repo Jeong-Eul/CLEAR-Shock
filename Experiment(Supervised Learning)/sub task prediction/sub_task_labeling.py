@@ -25,8 +25,71 @@ def main():
     ARDS_prediction(mimic, eicu)
     print('Finish!')
     print('--------------------------------------')
+    print('Creating SIC next 4, 8h Task...')
+    SIC_prediction(mimic, eicu)
+    print('Finish!')
+    print('--------------------------------------')
     
     
+def SIC_prediction(mimic, eicu):
+    m_sic_df = mimic[['subject_id', 'stay_id', 'Time_since_ICU_admission', 'INR', 'Platelets', 'suspected_infection', 'SoFa_score']].copy()
+    e_sic_df = eicu[['uniquepid', 'patientunitstayid', 'Time_since_ICU_admission', 'INR', 'Platelets', 'suspected_infection', 'SoFa_score']].copy()
+
+    m_sic_df[m_sic_df['suspected_infection']==1]
+
+    mimic_sepsis = m_sic_df[m_sic_df['suspected_infection']==1]
+    mimic_sepsis['sepsis'] = np.nan
+
+
+    for stayid in mimic_sepsis.stay_id.unique():
+        interest = mimic_sepsis[mimic_sepsis['stay_id'] == stayid]
+        
+        sepsis_condition = (interest['SoFa_score'] >= 2)
+        idx = interest[sepsis_condition].index
+        mimic_sepsis.loc[idx, 'sepsis'] = 1
+        
+    mimic_sepsis = mimic_sepsis.fillna(0)
+
+    e_sic_df[e_sic_df['suspected_infection']==1]
+
+    eicu_sepsis = e_sic_df[e_sic_df['suspected_infection']==1]
+    eicu_sepsis['sepsis'] = np.nan
+
+
+    for stayid in eicu_sepsis.patientunitstayid.unique():
+        interest = eicu_sepsis[eicu_sepsis['patientunitstayid'] == stayid]
+        
+        sepsis_condition = (interest['SoFa_score'] >= 2)
+        idx = interest[sepsis_condition].index
+        eicu_sepsis.loc[idx, 'sepsis'] = 1
+        
+    eicu_sepsis = eicu_sepsis.fillna(0)
+
+    m_cohort = mimic_sepsis[mimic_sepsis['sepsis']==1]
+    e_cohort = eicu_sepsis[eicu_sepsis['sepsis']==1]
+
+
+    annoted_m = scoring_Annotation_SIC(m_cohort, 'mimic')
+    annoted_e = scoring_Annotation_SIC(e_cohort, 'eicu')
+
+    m_sic_4h_df = SIC_4h_labeler(annoted_m, mode = 'mimic')
+    e_sic_4h_df = SIC_4h_labeler(annoted_e, mode = 'eicu')
+
+    m_sic_8h_df = SIC_8h_labeler(annoted_m, mode = 'mimic')
+    e_sic_8h_df = SIC_8h_labeler(annoted_e, mode = 'eicu')
+    
+    
+    """
+    patient_id | stay id | Time_since_ICU_admission | Annotation_SIC | label
+    """
+
+    m_sic_4h_df[['subject_id', 'stay_id', 'Time_since_ICU_admission', 'Annotation_SIC', 'SIC_next_4h']].to_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/mimic_sic_4h.csv.gz')
+    e_sic_4h_df[['uniquepid', 'patientunitstayid', 'Time_since_ICU_admission', 'Annotation_SIC', 'SIC_next_4h']].to_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/eicu_sic_4h.csv.gz')
+
+    m_sic_8h_df[['subject_id', 'stay_id', 'Time_since_ICU_admission', 'Annotation_SIC', 'SIC_next_8h']].to_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/mimic_sic_8h.csv.gz')
+    e_sic_8h_df[['uniquepid', 'patientunitstayid', 'Time_since_ICU_admission', 'Annotation_SIC', 'SIC_next_8h']].to_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/eicu_sic_8h.csv.gz')
+    
+
 
 def ARDS_prediction(mimic, eicu):
     m_ards_df = mimic[['subject_id', 'stay_id', 'Time_since_ICU_admission', 'PEEP', 'PaO2', 'FIO2 (%)']].copy()
@@ -240,5 +303,115 @@ def ARDS_8h_labeler(df, mode):
                 targ.loc[idx, 'ARDS_next_8h'] = 1
             else:
                 targ.loc[idx, 'ARDS_next_8h'] = 0
+
+    return targ
+
+def scoring_Annotation_SIC(df, mode):
+    
+    if mode == 'mimic':
+        stay_id_id = 'stay_id'
+    else:
+        stay_id_id = 'patientunitstayid'
+    
+    targ = df.copy()
+    
+    targ['Annotation_SIC'] = np.nan
+    
+    for stay_id in tqdm(targ[stay_id_id].unique()):
+        stay_df = targ[targ[stay_id_id] == stay_id].sort_values(by='Time_since_ICU_admission')
+
+        # Reset scores for each iteration
+        stay_df['total_score'] = 0
+        stay_df['INR_score'] = 0
+        stay_df['Platelets_score'] = 0
+        stay_df['SF_score'] = 0
+
+        # Calculate scores for each row in the current stay_df
+        for idx, row in stay_df.iterrows():
+            if row['INR'] <= 1.2:
+                stay_df.loc[idx, 'INR_score'] = 0
+            elif 1.2 < row['INR'] <= 1.4:
+                stay_df.loc[idx, 'INR_score'] = 1
+            else:
+                stay_df.loc[idx, 'INR_score'] = 2
+
+            if row['Platelets'] >= 150:
+                stay_df.loc[idx, 'Platelets_score'] = 0
+            elif 100 <= row['Platelets'] < 150:
+                stay_df.loc[idx, 'Platelets_score'] = 1
+            else:
+                stay_df.loc[idx, 'Platelets_score'] = 2
+
+            if row['SoFa_score'] == 0:
+                stay_df.loc[idx, 'SF_score'] = 0
+            elif row['SoFa_score'] == 1:
+                stay_df.loc[idx, 'SF_score'] = 1
+            else:
+                stay_df.loc[idx, 'SF_score'] = 2
+
+            stay_df.loc[idx, 'total_score'] = stay_df.loc[idx, 'INR_score'] + stay_df.loc[idx, 'Platelets_score'] + stay_df.loc[idx, 'SF_score']
+
+        idx_sic = stay_df[(stay_df['total_score'] >= 4) | ((stay_df['INR_score'] + stay_df['Platelets_score']) >= 2)].index
+        idx_no_sic = stay_df.index.difference(idx_sic)
+
+        if not idx_sic.empty:
+            targ.loc[idx_sic, 'Annotation_SIC'] = 'SIC'
+        if not idx_no_sic.empty:
+            targ.loc[idx_no_sic, 'Annotation_SIC'] = 'no_SIC'
+
+    return targ
+
+
+def SIC_4h_labeler(df, mode):
+    
+    if mode == 'mimic':
+        stay_id_id = 'stay_id'
+    else:
+        stay_id_id = 'patientunitstayid'
+
+    targ = df.copy()
+    targ['SIC_next_4h'] = np.nan
+  
+    for stay_id in tqdm(targ[stay_id_id].unique()):
+        stay_df = targ[targ[stay_id_id] == stay_id].sort_values(by='Time_since_ICU_admission')
+        stay_df['endpoint_window'] = stay_df['Time_since_ICU_admission'] + 4
+
+        for idx, row in stay_df.iterrows():
+            current_time = row['Time_since_ICU_admission']
+            endpoint_window = row['endpoint_window']
+
+            future_rows = stay_df[(stay_df['Time_since_ICU_admission'] > current_time) & (stay_df['Time_since_ICU_admission'] <= endpoint_window)]
+
+            if any(future_rows['Annotation_SIC'] == 'SIC'):
+                targ.loc[idx, 'SIC_next_4h'] = 1
+            else:
+                targ.loc[idx, 'SIC_next_4h'] = 0
+
+    return targ
+
+def SIC_8h_labeler(df, mode):
+    
+    if mode == 'mimic':
+        stay_id_id = 'stay_id'
+    else:
+        stay_id_id = 'patientunitstayid'    
+
+    targ = df.copy()
+    targ['SIC_next_8h'] = np.nan
+  
+    for stay_id in tqdm(targ[stay_id_id].unique()):
+        stay_df = targ[targ[stay_id_id] == stay_id].sort_values(by='Time_since_ICU_admission')
+        stay_df['endpoint_window'] = stay_df['Time_since_ICU_admission'] + 8
+
+        for idx, row in stay_df.iterrows():
+            current_time = row['Time_since_ICU_admission']
+            endpoint_window = row['endpoint_window']
+
+            future_rows = stay_df[(stay_df['Time_since_ICU_admission'] > current_time) & (stay_df['Time_since_ICU_admission'] <= endpoint_window)]
+
+            if any(future_rows['Annotation_SIC'] == 'SIC'):
+                targ.loc[idx, 'SIC_next_8h'] = 1
+            else:
+                targ.loc[idx, 'SIC_next_8h'] = 0
 
     return targ
