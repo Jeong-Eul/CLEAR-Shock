@@ -5,11 +5,13 @@ import sys
 from tqdm import tqdm
 pd.set_option('mode.chained_assignment', None)
 
-mimic_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis.csv.gz'
-eicu_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/eicu_analysis.csv.gz'
+mimic_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis(new_version0229).csv.gz'
+eicu_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/eicu_analysis(new_version0229).csv.gz'
 
 mimic = pd.read_csv(mimic_path, compression = 'gzip')
+mimic = mimic[mimic['INDEX']=='CASE3_CASE4_DF'].reset_index(drop=True)
 eicu = pd.read_csv(eicu_path, compression = 'gzip')
+eicu = eicu[eicu['INDEX']=='CASE3_CASE4_DF'].reset_index(drop=True)
 
 
 def main():
@@ -131,12 +133,9 @@ def remain_ratio_prediction(mimic, eicu):
         m_los_df.loc[interest.index, 'remain_los'] = remain_los
         
     m_los_df = m_los_df.copy()
-    m_los_df.loc[m_los_df['remain_los'] < 24, 'remain_los'] = 0
-    m_los_df.loc[(m_los_df['remain_los'] >= 24) & (m_los_df['remain_los'] < 48), 'remain_los'] = 1
-    m_los_df.loc[(m_los_df['remain_los'] >= 48) & (m_los_df['remain_los'] < 72), 'remain_los'] = 2
-    m_los_df.loc[(m_los_df['remain_los'] >= 72) & (m_los_df['remain_los'] < 96), 'remain_los'] = 3
-    m_los_df.loc[(m_los_df['remain_los'] >= 96) & (m_los_df['remain_los'] < 120), 'remain_los'] = 4
-    m_los_df.loc[m_los_df['remain_los'] >= 120, 'remain_los'] = 5
+    m_los_df.loc[m_los_df['remain_los'] < 120, 'remain_los'] = 0 #5 미만
+    m_los_df.loc[(m_los_df['remain_los'] >= 120) & (m_los_df['remain_los'] < 240), 'remain_los'] = 1 # 10
+    m_los_df.loc[m_los_df['remain_los'] >= 240, 'remain_los'] = 2 #15 이상
     
     e_los_df['remain_los'] = np.nan
 
@@ -148,12 +147,9 @@ def remain_ratio_prediction(mimic, eicu):
         e_los_df.loc[interest.index, 'remain_los'] = remain_los
         
     e_los_df = e_los_df.copy()
-    e_los_df.loc[e_los_df['remain_los'] < 24, 'remain_los'] = 0
-    e_los_df.loc[(e_los_df['remain_los'] >= 24) & (e_los_df['remain_los'] < 48), 'remain_los'] = 1
-    e_los_df.loc[(e_los_df['remain_los'] >= 48) & (e_los_df['remain_los'] < 72), 'remain_los'] = 2
-    e_los_df.loc[(e_los_df['remain_los'] >= 72) & (e_los_df['remain_los'] < 96), 'remain_los'] = 3
-    e_los_df.loc[(e_los_df['remain_los'] >= 96) & (e_los_df['remain_los'] < 120), 'remain_los'] = 4
-    e_los_df.loc[e_los_df['remain_los'] >= 120, 'remain_los'] = 5
+    e_los_df.loc[e_los_df['remain_los'] < 120, 'remain_los'] = 0 # 5미만
+    e_los_df.loc[(e_los_df['remain_los'] >= 120) & (e_los_df['remain_los'] < 240), 'remain_los'] = 1 # 10
+    e_los_df.loc[e_los_df['remain_los'] >= 240, 'remain_los'] = 2 # 15
     
     """
     patient_id | stay id | Time_since_ICU_admission | remain_los(label)
@@ -260,7 +256,7 @@ def ARDS_4h_labeler(df, mode):
         stay_id_id = 'patientunitstayid'
 
     targ = df.copy()
-    targ['ARDS_next_12h'] = np.nan
+    targ['ARDS_next_4h'] = np.nan
   
     for stay_id in tqdm(targ[stay_id_id].unique()):
         stay_df = targ[targ[stay_id_id] == stay_id].sort_values(by='Time_since_ICU_admission')
@@ -287,7 +283,7 @@ def ARDS_8h_labeler(df, mode):
         stay_id_id = 'patientunitstayid'    
 
     targ = df.copy()
-    targ['ARDS_next_12h'] = np.nan
+    targ['ARDS_next_8h'] = np.nan
   
     for stay_id in tqdm(targ[stay_id_id].unique()):
         stay_df = targ[targ[stay_id_id] == stay_id].sort_values(by='Time_since_ICU_admission')

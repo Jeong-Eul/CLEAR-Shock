@@ -80,6 +80,7 @@ def integrating(data_path, emb_path_trn, emb_path_vld, emb_path_event, mode):
         
         eventset = data[(data['Case']=='event')].reset_index(drop=True)
         dataset = dataset[~(dataset['Case']=='event')]
+        dataset = dataset[~((dataset['Case']==4)&(dataset['Annotation']=='no_circ'))]
         dataset['Case'] = pd.to_numeric(dataset['Case'], errors='coerce')
         
         save_load = np.load(emb_path_trn)
@@ -101,16 +102,16 @@ def integrating(data_path, emb_path_trn, emb_path_vld, emb_path_event, mode):
         dataset.fillna(0, inplace=True) 
         
         dataset = dataset[~(dataset['Case']=='event')]
-        
+        dataset = dataset[~((dataset['Case']==4)&(dataset['Annotation']=='no_circ'))]
         eventset = data[(data['Case']=='event')].reset_index(drop=True)
         
-        event_save_load = np.load(emb_path_event)
+        # event_save_load = np.load(emb_path_event)
         
-        num_columns = len(event_save_load[0])
-        column_names = ['emb_{}'.format(i+1) for i in range(num_columns)]
-        event_embedding = pd.DataFrame(event_save_load, columns = column_names)
-        del event_save_load
-        evt_emb_integ = pd.concat([eventset, event_embedding], axis = 1)
+        # num_columns = len(event_save_load[0])
+        # column_names = ['emb_{}'.format(i+1) for i in range(num_columns)]
+        # event_embedding = pd.DataFrame(event_save_load, columns = column_names)
+        # del event_save_load
+        # evt_emb_integ = pd.concat([eventset, event_embedding], axis = 1)
         
         dataset['Case'] = pd.to_numeric(dataset['Case'], errors='coerce')
         
@@ -131,7 +132,7 @@ def integrating(data_path, emb_path_trn, emb_path_vld, emb_path_event, mode):
         
         vld_emb_integ = pd.concat([valid, vld_embedding], axis = 1)
     
-        return trn_emb_integ, vld_emb_integ, eventset, evt_emb_integ
+        return trn_emb_integ, vld_emb_integ, eventset
 
 
 def integrating_dimensionality_reduction(data_path, emb_path_trn, emb_path_vld, mode):
