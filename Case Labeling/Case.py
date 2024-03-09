@@ -197,153 +197,117 @@ def get_case3_4(target, case1_stay_ids, mode = 'mimic'):
                     event_occurred = False
                     current_part = []
                     break
+                
                 elif index == dataset.index[-1]:
                     if row['Annotation'] == 'ambiguous':
                         event_occurred = False
                         current_part = []
                         break
                     
+                elif index == dataset.index[-1]:
+                    if row['Annotation'] == 'circ':
+                        event_occurred = False
+                        current_part = []
+                        break
+                    
             else:
                 if row['Annotation']=='circ':
+                    current_part.append(row)
                     event_occurred = True
 
     return split_data
 
 
-def recov_Annotation(case3_case4_parts):
-    targ = case3_case4_parts.copy()
-    update_parts = []
-
-    for stay_trajectory in tqdm(targ):
-        
-        stay_trajectory['progress'] = np.nan
-        
-        true_measurements_lactate = stay_trajectory['Lactate'].unique()
-        true_measurements_lactate_index = []
-        
-        for value in true_measurements_lactate:
-            first_occurrence_index = stay_trajectory[stay_trajectory['Lactate'] == value].index[0]
-            true_measurements_lactate_index.append(first_occurrence_index)
-        
-        #init
-        
-        anchor_lactate = true_measurements_lactate[0]
-        count_change = 0
-        
-        # true_measurements_lactate_index = [0, 1, 2, 3]
-        # true_measurements_lactate = [(1.2 masking), 1.2, 2.0, 1.4, 0.7]
-        
-        lactate_count_dict = {element: index+1 for index, element in enumerate(true_measurements_lactate)}
-        
-        for idx, row in stay_trajectory.iterrows():
-            
-            #LACTATE COND
-            current_lactate = row['Lactate']
-                
-            if lactate_count_dict[current_lactate] - count_change == 1:
-                lactate_decrease = current_lactate < anchor_lactate
-            
-            elif current_lactate != anchor_lactate:
-                count_change += 1
-                lactate_decrease = current_lactate < anchor_lactate #바뀌는 순간은 그대로 계산해도 됨
-                for key, value in lactate_count_dict.items():
-                    if value == count_change:
-                        anchor_lactate = key
-                
-            #MAP COND
-            map_increase = (row['MAP'] >= 65) #MAP가 65 이상으로 상승해야 함
-
-
-            recov_cond = (map_increase) & (lactate_decrease)
-            
-            # Annotation
-            
-            if recov_cond:
-                stay_trajectory.at[idx, 'progress'] = 'recov'
-            else :
-                stay_trajectory.at[idx, 'progress'] = 'not_recov'
-                
-        update_parts.append(stay_trajectory)
-
-    return update_parts
-
-def Case3_Case4_labeler(parts):
-    targ = parts.copy()
-    result = []
-  
-    for part in tqdm(targ):
-        part = part[~(part['Annotation']=='no_circ')]
-        part['Case'] = np.nan
-        part['endpoint_window'] = part['Time_since_ICU_admission'] + 1
-
-        for idx, row in part.iterrows():
-            current_time = row['Time_since_ICU_admission']
-            endpoint_window = row['endpoint_window']
-
-            future_rows = part[(part['Time_since_ICU_admission'] > current_time) & (part['Time_since_ICU_admission'] <= endpoint_window)]
-
-            if any(future_rows['progress'] == 'recov'):
-                part.loc[idx, 'Case'] = 3
-            else:
-                part.loc[idx, 'Case'] = 4
-        
-        result.append(part.drop('endpoint_window', axis = 1))
-
-    return pd.concat(result).reset_index(drop=True)
-
-def lactate_up(df, mode):
-    targ = df.copy()
+def recov_Annotation(data, mode):
+    targ = data.copy()
+    targ['progress'] = 0
     
     if mode == 'mimic':
         stay_id_id = 'stay_id'
-    elif mode == 'eicu':
+    else:
         stay_id_id = 'patientunitstayid'
+    
+    
+    for stay_trajectory in tqdm(targ[stay_id_id].unique()):
+        interest = targ[targ[stay_id_id] == stay_trajectory]
         
-    targ['lactate_up'] = np.nan
-        
-    for stayid in tqdm(targ[stay_id_id].unique()):
-        
-        stay_trajectory = targ[targ[stay_id_id]==stayid]
-
-        true_measurements_lactate = stay_trajectory['Lactate'].unique()
-        true_measurements_lactate_index = []
-        
-        for value in true_measurements_lactate:
-            first_occurrence_index = stay_trajectory[stay_trajectory['Lactate'] == value].index[0]
-            true_measurements_lactate_index.append(first_occurrence_index)
-        
-        #init
-        
-        anchor_lactate = true_measurements_lactate[0]
-        count_change = 0
-        
-        # true_measurements_lactate_index = [0, 1, 2, 3]
-        # true_measurements_lactate = [(1.2 masking), 1.2, 2.0, 1.4, 0.7]
-        
-        lactate_count_dict = {element: index+1 for index, element in enumerate(true_measurements_lactate)}
-        
-        for idx, row in stay_trajectory.iterrows():
-            #LACTATE COND
-            current_lactate = row['Lactate']
+        for idx, row in interest.iterrows():
             
-            if lactate_count_dict[current_lactate] - count_change == 1:
-                lactate_decrease = current_lactate <= anchor_lactate
             
-            elif current_lactate != anchor_lactate:
-                count_change += 1
-                lactate_decrease = current_lactate <= anchor_lactate #바뀌는 순간은 그대로 계산해도 됨
-                for key, value in lactate_count_dict.items():
-                    if value == count_change:
-                        anchor_lactate = key
+            current_time = row['Time_since_ICU_admission']
+            pastpoint_window_1h = current_time - 1
+        
+            relevant_rows = interest[(interest['Time_since_ICU_admission'] <= current_time) & (interest['Time_since_ICU_admission'] >= pastpoint_window_1h)]
+            # no_recover_cond = (relevant_rows['MAP'] >= 65.0).all() & ((row['Lactate'] >= 2) | (row['lactate_up']==1))
+            recover_cond = (relevant_rows['MAP'] >= 65.0).all() & ((row['Lactate'] <= 2) | (row['lactate_up']==0))
             
-            # Annotation
-            
-            if lactate_decrease:
-                targ.at[idx, 'lactate_up'] = 0
-            else :
-                targ.at[idx, 'lactate_up'] = 1
+            if recover_cond:
+                targ.at[idx, 'progress'] = 'recov'
+            else:
+                targ.at[idx, 'progress'] = 'not_recov'
 
     return targ
+
+def Case3_Case4_labeler(parts, mode):
+    targ = parts.copy()
+  
+    if mode == 'mimic':
+        stay_id_id = 'stay_id'
+    else:
+        stay_id_id = 'patientunitstayid'
+  
+    for stayid in tqdm(targ[stay_id_id].unique()):
+        interest = targ[targ[stay_id_id]==stayid]
+        interest['Case'] = np.nan
+        interest['endpoint_window'] = interest['Time_since_ICU_admission'] + 3
+
+        for idx, row in interest.iterrows():
+            current_time = row['Time_since_ICU_admission']
+            endpoint_window = row['endpoint_window']
+
+            future_rows = interest[(interest['Time_since_ICU_admission'] > current_time) & (interest['Time_since_ICU_admission'] <= endpoint_window)]
+
+            if all(future_rows['progress'] == 'recov'):
+                targ.loc[idx, 'Case'] = 3
+            else:
+                targ.loc[idx, 'Case'] = 4
+
+    return targ.reset_index(drop=True)
+
+def Lactate_up(df, mode = 'mimic'):
+    data = df.copy().reset_index(drop=True)
+    data['lactate_up'] = 0
+    if mode == 'mimic':
+        stay_id_id = 'stay_id'
+    else:
+        stay_id_id = 'patientunitstayid'
+    
+    for stay in tqdm(data[stay_id_id].unique()):
+        interest = data[data[stay_id_id]==stay].sort_values(by='Time_since_ICU_admission')
+        idx = interest.index
+        
+        Lactate = interest['Lactate']
+        Lactate_up_corrected = []
+        
+        previous_real_value = Lactate.iloc[0]
+        Lactate_up_corrected.append(0)
+        
+        for i in range(1, len(Lactate)):
+            if Lactate.iloc[i] != Lactate.iloc[i-1]:
+                
+                if Lactate.iloc[i] > previous_real_value:
+                    Lactate_up_corrected.append(1)
+                    
+                else:
+                    Lactate_up_corrected.append(0)
+                    previous_real_value = Lactate.iloc[i]
+            else:
+                Lactate_up_corrected.append(Lactate_up_corrected[-1])
+               
+        
+        data.loc[idx, 'lactate_up'] = np.array(Lactate_up_corrected)
+    return data
+
 
 def recovery_filter_stay_ids(group):
     if all(group.tail(3)['progress'] == 2):
@@ -386,21 +350,31 @@ def Case_definetion(df, mode):
     case1_case2['Case'].loc[case2_idx] = 2
     case1_case2['Case'].loc[amb_case2_idx] = 2
     case1_case2['Case'] = case1_case2['Case'].fillna('event') 
-    
+    case1_case2 = Lactate_up(case1_case2, mode)
+    case1_case2['progress'] = 0
     print('--------------')
     
     print('Extract Case 3, Case 4')        
-    case3_4 = get_case3_4(data, case1_stay_ids, mode)
-    case3_4 = recov_Annotation(case3_4)
-    
-    case3_case_4 = Case3_Case4_labeler(case3_4)
-    print('--------------')
-    
-    print('MAKE progress') 
-    case1_case2['progress'] = 0
+    case3_4 = get_case3_4(data, case1_stay_ids, mode) #case3_4에서는 마지막에 no_circ 관측치는 event가 되는 거임
+    case3_case4 = Lactate_up(pd.concat(case3_4), mode)
+    case3_case4 = recov_Annotation(case3_case4, mode)
+    case3_case_4 = Case3_Case4_labeler(case3_case4, mode)
     case3_case_4['progress'] = case3_case_4['progress'].map({'not_recov': 1, 'recov': 2})
     
-    print('--------------')
+    return case1_case2, case3_case_4
+    
+    
+    # 여기서부터는 다시 작성해야함 0227
+    # case3_4 = recov_Annotation(case3_4)
+    
+    # case3_case_4 = Case3_Case4_labeler(case3_4)
+    # print('--------------')
+    
+    # print('MAKE progress') 
+    # case1_case2['progress'] = 0
+    # case3_case_4['progress'] = case3_case_4['progress'].map({'not_recov': 1, 'recov': 2})
+    
+    # print('--------------')
     
     # print('Select target cohort')
     # recover_grouped = case3_case_4.groupby(stay_id_id)
@@ -421,9 +395,9 @@ def Case_definetion(df, mode):
     # valid_stay_ids = [name for name, group in deterioation_grouped if detorioration_filter_stay_ids(group)]
     # detorioration = case3_case_4[case3_case_4[stay_id_id].isin(valid_stay_ids)].copy()
     
-    print('Finish, ....')
-    print('--------------')
-    return case1_case2, case3_case_4
+    # print('Finish, ....')
+    # print('--------------')
+    # return case1_case2, case3_case_4
 
 
 # def filter_cohort(mimic, eicu):
