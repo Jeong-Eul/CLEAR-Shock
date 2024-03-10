@@ -235,7 +235,7 @@ class TrainingDataset(Dataset):
         # if dataset is eicu
         else:
             
-            mimic = pd.read_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis(new_version0229).csv.gz', compression='gzip')
+            mimic = pd.read_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis(new_version0308).csv.gz', compression='gzip')
             
             self.cat_features = []
             self.num_features = []
@@ -346,7 +346,7 @@ class TableDataset(Dataset):
         
                 # df_raw = df_raw[df_raw['hospitaldischargeyear']==2014]
                 
-                mimic = pd.read_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis(new_version0229).csv.gz', compression='gzip')
+                mimic = pd.read_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis(new_version0308).csv.gz', compression='gzip')
                 mimic = mimic.drop('Shock_next_12h', axis = 1)
                 self.cat_features = []
                 self.num_features = []
@@ -378,7 +378,7 @@ class TableDataset(Dataset):
 
                 df_raw = df_raw[df_raw['hospitaldischargeyear']==2015]
                 
-                mimic = pd.read_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis(new_version0229).csv.gz', compression='gzip')
+                mimic = pd.read_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis(new_version0308).csv.gz', compression='gzip')
                 mimic = mimic.drop('Shock_next_12h', axis = 1)
                 self.cat_features = []
                 self.num_features = []
@@ -459,7 +459,7 @@ class Case1Dataset(Dataset):
         
         if self.data_type == 'mimic':
             
-            mimic = pd.read_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis(new_version0229).csv.gz', compression='gzip')
+            mimic = pd.read_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis(new_version0308).csv.gz', compression='gzip')
             mimic = mimic.drop('Shock_next_12h', axis = 1)
             self.cat_features = []
             self.num_features = []
@@ -539,7 +539,7 @@ class Case2Dataset(Dataset):
         
         if self.data_type == 'mimic':
             
-            mimic = pd.read_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis(new_version0229).csv.gz', compression='gzip')
+            mimic = pd.read_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis(new_version0308).csv.gz', compression='gzip')
             mimic = mimic.drop('Shock_next_12h', axis = 1)
             self.cat_features = []
             self.num_features = []
@@ -620,7 +620,7 @@ class Case3Dataset(Dataset):
         
         if self.data_type == 'mimic':
             
-            mimic = pd.read_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis(new_version0229).csv.gz', compression='gzip')
+            mimic = pd.read_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis(new_version0308).csv.gz', compression='gzip')
             mimic = mimic.drop('Shock_next_12h', axis = 1)
             self.cat_features = []
             self.num_features = []
@@ -701,7 +701,7 @@ class Case4Dataset(Dataset):
         
         if self.data_type == 'mimic':
             
-            mimic = pd.read_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis(new_version0229).csv.gz', compression='gzip')
+            mimic = pd.read_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis(new_version0308).csv.gz', compression='gzip')
             mimic = mimic.drop('Shock_next_12h', axis = 1)
             self.cat_features = []
             self.num_features = []
