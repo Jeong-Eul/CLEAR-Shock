@@ -31,7 +31,7 @@ warnings.filterwarnings('ignore')
 
 def create_analysis(eventset,X_train, y_train, X_valid, valid_output, mode):
 
-    model_names = ['lgbm', 'rf', 'dt', 'lr']
+    model_names = ['xgb', 'lgbm', 'catboost', 'rf', 'dt', 'svm-ovr', 'lr', 'naivebayes', 'knn']
     trained_models = []
     result = pd.DataFrame()
     
@@ -51,7 +51,7 @@ def create_analysis(eventset,X_train, y_train, X_valid, valid_output, mode):
 
 def create_subtask(X_train, y_train, X_valid, valid_output, event, mode, type, event_task):
     
-    model_names = ['lgbm', 'rf', 'dt', 'lr']
+    model_names = ['xgb', 'lgbm', 'catboost', 'rf', 'dt', 'svm-ovr', 'lr', 'naivebayes', 'knn']
     trained_models = []
     result = pd.DataFrame()
     
@@ -76,7 +76,7 @@ def create_subtask(X_train, y_train, X_valid, valid_output, event, mode, type, e
 
 def create_threshold(eventset,X_train, y_train, X_valid, valid_output, mode):
     
-    model_names = ['lgbm', 'rf', 'dt', 'lr']
+    model_names = ['xgb', 'lgbm', 'catboost', 'rf', 'dt', 'svm-ovr', 'lr', 'naivebayes', 'knn']
     trained_models = []
     result = pd.DataFrame()
     
@@ -96,7 +96,7 @@ def create_threshold(eventset,X_train, y_train, X_valid, valid_output, mode):
 
 
 
-def external_evaluation(unitadmitsource, unittype, unitstaytype, model, model_name, eicu_event):
+def external_evaluation(unitadmitsource, unittype, unitstaytype, model, model_name, eicu_event, col):
     print('[Starting eICU-Test]')
     
     result = pd.DataFrame()
@@ -110,13 +110,13 @@ def external_evaluation(unitadmitsource, unittype, unitstaytype, model, model_na
     
     for type in unitadmitsource.keys():
         try:
-            eval_set = unitadmitsource[type].drop(drop_col, axis = 1)
+            eval_set = unitadmitsource[type]
             eval_event = eicu_event[eicu_event['patientunitstayid'].isin(eval_set.patientunitstayid.unique())]
             X_test, _, test_output = split.split_X_Y(eval_set, mode = 'eicu')
-            test_preds = model.predict(X_test)
+            test_preds = model.predict(X_test[col])
             
             test_output['prediction_label'] = test_preds
-            test_output['prediction_prob'] = model.predict_proba(X_test)[:, 1]
+            test_output['prediction_prob'] = model.predict_proba(X_test[col])[:, 1]
             
             result_sub = MULT_evaluation(test_output, eval_event, model_name, 'eicu')
             result_sub['Subpopulation'] = 'UnitAdmitSource'
@@ -130,12 +130,12 @@ def external_evaluation(unitadmitsource, unittype, unitstaytype, model, model_na
     
     for type in unittype.keys():
         try:
-            eval_set = unittype[type].drop(drop_col, axis = 1)
+            eval_set = unittype[type]
             X_test, _, test_output = split.split_X_Y(eval_set, mode = 'eicu')
-            test_preds = model.predict(X_test)
+            test_preds = model.predict(X_test[col])
             
             test_output['prediction_label'] = test_preds
-            test_output['prediction_prob'] = model.predict_proba(X_test)[:, 1]
+            test_output['prediction_prob'] = model.predict_proba(X_test[col])[:, 1]
             
             result_sub = MULT_evaluation(test_output, eicu_event, model_name, 'eicu')
             result_sub['Subpopulation'] = 'UnitType'
@@ -149,12 +149,12 @@ def external_evaluation(unitadmitsource, unittype, unitstaytype, model, model_na
     
     for type in unitstaytype.keys():
         try:
-            eval_set = unitstaytype[type].drop(drop_col, axis = 1)
+            eval_set = unitstaytype[type]
             X_test, _, test_output = split.split_X_Y(eval_set, mode = 'eicu')
-            test_preds = model.predict(X_test)
+            test_preds = model.predict(X_test[col])
             
             test_output['prediction_label'] = test_preds
-            test_output['prediction_prob'] = model.predict_proba(X_test)[:, 1]
+            test_output['prediction_prob'] = model.predict_proba(X_test[col])[:, 1]
             
             result_sub = MULT_evaluation(test_output, eicu_event, model_name, 'eicu')
             result_sub['Subpopulation'] = 'UnitStayType'
@@ -163,7 +163,6 @@ def external_evaluation(unitadmitsource, unittype, unitstaytype, model, model_na
             
         except:
             pass
-        
     
     display(result.set_index(['Subpopulation', 'eICU Type']))
     
@@ -378,7 +377,7 @@ def auprc_score_multiclass(actual_class, pred_class, average="macro"):
     return auprc_dict
 
 def MULT_evaluation(inference_output, event, model_name, mode):
-    
+    inference_output_no_amb = inference_output[inference_output['Annotation']=='ambiguous']
     accuracy = accuracy_score(inference_output.Case, inference_output.prediction_label)
     roc_auc_dict = roc_auc_score_multiclass(inference_output.Case, inference_output.prediction_label)
     prc_auc_dict = auprc_score_multiclass(inference_output.Case, inference_output.prediction_label)
@@ -390,6 +389,10 @@ def MULT_evaluation(inference_output, event, model_name, mode):
     
     result = classifier_ML.event_metric(event, event_for, mode, model_name)
     case2_recall_event = result['recall'].values[0]
+    case2_precision_event = result['precision'].values[0]
+    
+    roc_auc_dict_case2 = roc_auc_score_multiclass(inference_output_no_amb.Case, inference_output_no_amb.prediction_label)
+    prc_auc_dict_case2 = auprc_score_multiclass(inference_output_no_amb.Case, inference_output_no_amb.prediction_label)
     
 
     if 1 in inference_output.Case.values:
@@ -408,11 +411,11 @@ def MULT_evaluation(inference_output, event, model_name, mode):
         
     if 2 in inference_output.Case.values:
         beta = 2
-        case2_recall = np.round(report_int_keys[2]['recall'], 4)
-        case2_precision = np.round(report_int_keys[2]['precision'], 4)
-        case2_score = np.round((1+(beta)**2)*(case2_recall_event*case2_precision)/((beta)**2 * case2_precision + case2_recall_event), 4)
-        case2_aucroc = np.round(roc_auc_dict[2], 4)
-        case2_auprc = np.round(prc_auc_dict[2], 4)
+        # case2_recall = np.round(report_int_keys[2]['recall'], 4)
+        # case2_precision = np.round(report_int_keys[2]['precision'], 4)
+        case2_score = np.round((1+(beta)**2)*(case2_recall_event*case2_precision_event)/((beta)**2 * case2_precision_event + case2_recall_event), 4)
+        case2_aucroc = np.round(roc_auc_dict_case2[2], 4)
+        case2_auprc = np.round(prc_auc_dict_case2[2], 4)
         
     else:
         case2_recall = '-'
@@ -446,11 +449,15 @@ def MULT_evaluation(inference_output, event, model_name, mode):
         case4_auprc = '-'
         
     
+    # data = {'Model':[model_name], 'Accuracy': [accuracy],
+    #         'Case 1 AUROC': [case1_aucroc],'Case 1 AUPRC': [case1_auprc],'Case 2 AUROC': [case2_aucroc],'Case 2 AUPRC': [case2_auprc],
+    #         'Case 3 AUROC': [case3_aucroc],'Case 3 AUPRC': [case3_auprc],'Case 4 AUROC': [case4_aucroc],'Case 4 AUPRC': [case4_auprc],
+    #         'Case 1 Score': [case1_score],'Case 2 Score': [case2_score], 'Case 3 Score': [case3_score],'Case 3 Score': [case3_score], 
+    #         'Case 4 Score': [case4_score]}
+    
     data = {'Model':[model_name], 'Accuracy': [accuracy],
             'Case 1 AUROC': [case1_aucroc],'Case 1 AUPRC': [case1_auprc],'Case 2 AUROC': [case2_aucroc],'Case 2 AUPRC': [case2_auprc],
-            'Case 3 AUROC': [case3_aucroc],'Case 3 AUPRC': [case3_auprc],'Case 4 AUROC': [case4_aucroc],'Case 4 AUPRC': [case4_auprc],
-            'Case 1 Score': [case1_score],'Case 2 Score': [case2_score], 'Case 3 Score': [case3_score],'Case 3 Score': [case3_score], 
-            'Case 4 Score': [case4_score]}
+            'Case 3 AUROC': [case3_aucroc],'Case 3 AUPRC': [case3_auprc],'Case 4 AUROC': [case4_aucroc],'Case 4 AUPRC': [case4_auprc]}
 
     return pd.DataFrame(data).fillna(0)
 
@@ -606,3 +613,73 @@ def ST_multi_evaluation(event, inference_output, model_name):
 
     return pd.DataFrame(data).fillna(0)
     
+    
+
+import math
+
+def calculate_angle(t, e):
+
+    m = (- t) / (e - t + 0.000000001)
+    angle_radians = math.atan(m)
+
+    return angle_radians
+
+def ACID(inference_output, event, mode):
+    sigma_cosine_term = 0
+    alpha_ea_term = 0 
+    
+    if mode == 'mimic':
+        icu_stay = 'stay_id'
+    else:
+        icu_stay = 'patientunitstayid'
+
+    usecol = [icu_stay,'Time_since_ICU_admission', 'Annotation', 'progress', 'Case', 'prediction_label']
+
+    event_set = event[usecol[:-1]].copy()
+    event_set['prediction_label'] = 'label'
+    output_set = inference_output[inference_output['INDEX']=='CASE1_CASE2_DF'][usecol]
+    output_set['prediction_label'] = output_set['prediction_label']
+
+    event_set = event_set[event_set[icu_stay].isin(output_set[icu_stay].unique())]
+
+    event_set_reset = event_set.reset_index(drop=True)
+    output_set_reset = output_set.reset_index(drop=True)
+
+    total_set = pd.concat([event_set_reset, output_set_reset], axis = 0, ignore_index=True).reset_index(drop=True).sort_values(by='Time_since_ICU_admission')
+    n_stay = total_set[icu_stay].nunique()
+    for stay in total_set[icu_stay].unique():
+        
+        testing = total_set[total_set[icu_stay]==stay][[icu_stay, 'Time_since_ICU_admission', 'Case', 'prediction_label']]
+        
+        testing['Case'] = testing['Case'].replace({1: 0, 2:1})
+        testing['prediction_label'] = testing['prediction_label'].replace({1: 0, 2:1})
+        start_time = testing['Time_since_ICU_admission'].iloc[0]
+        event_time = testing['Time_since_ICU_admission'].iloc[-1]
+
+        time_window = event_time - 8
+
+        prediction_window = testing[(testing['Time_since_ICU_admission'] >= time_window) & (testing['Time_since_ICU_admission'] < event_time)]
+        out_of_prediction_window = testing[(testing['Time_since_ICU_admission'] >= start_time) & (testing['Time_since_ICU_admission'] < time_window)]
+
+        scaled_pw = prediction_window.reset_index(drop=True)
+
+        try:
+
+            t = scaled_pw[scaled_pw['prediction_label']==1].index[0]
+            e = scaled_pw.index[-1] + 1
+            sigma_cosine_term +=math.cos((calculate_angle(t, e)))
+            
+            if len(out_of_prediction_window) > 0:
+                c = out_of_prediction_window['prediction_label'].sum()
+                out_window = len(out_of_prediction_window)
+                alpha_ea_term += c/(out_window)
+                
+            else:
+                alpha_ea_term += 0
+            
+        except:
+
+            sigma_cosine_term += 0
+            alpha_ea_term += 0
+            
+    return sigma_cosine_term/n_stay, alpha_ea_term/n_stay

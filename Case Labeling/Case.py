@@ -214,6 +214,13 @@ def get_case3_4(target, case1_stay_ids, mode = 'mimic'):
                 if row['Annotation']=='circ':
                     current_part.append(row)
                     event_occurred = True
+                elif row['Annotation']=='ambiguous':
+                    current_part.append(row)
+                    
+                else:
+                    current_part.append(row)
+                    break
+                
 
     return split_data
 
@@ -235,11 +242,11 @@ def recov_Annotation(data, mode):
             
             
             current_time = row['Time_since_ICU_admission']
-            pastpoint_window_1h = current_time - 1
+            pastpoint_window_1h = current_time - 3
         
             relevant_rows = interest[(interest['Time_since_ICU_admission'] <= current_time) & (interest['Time_since_ICU_admission'] >= pastpoint_window_1h)]
             # no_recover_cond = (relevant_rows['MAP'] >= 65.0).all() & ((row['Lactate'] >= 2) | (row['lactate_up']==1))
-            recover_cond = (relevant_rows['MAP'] >= 65.0).all() & ((row['Lactate'] <= 2) | (row['lactate_up']==0))
+            recover_cond = (relevant_rows['MAP'] >= 65.0).all() & ((row['Lactate'] <= 2) | (row['lactate_up']==0)) 
             
             if recover_cond:
                 targ.at[idx, 'progress'] = 'recov'
@@ -259,7 +266,7 @@ def Case3_Case4_labeler(parts, mode):
     for stayid in tqdm(targ[stay_id_id].unique()):
         interest = targ[targ[stay_id_id]==stayid]
         interest['Case'] = np.nan
-        interest['endpoint_window'] = interest['Time_since_ICU_admission'] + 3
+        interest['endpoint_window'] = interest['Time_since_ICU_admission'] + 1
 
         for idx, row in interest.iterrows():
             current_time = row['Time_since_ICU_admission']
@@ -267,10 +274,10 @@ def Case3_Case4_labeler(parts, mode):
 
             future_rows = interest[(interest['Time_since_ICU_admission'] > current_time) & (interest['Time_since_ICU_admission'] <= endpoint_window)]
 
-            if all(future_rows['progress'] == 'recov'):
-                targ.loc[idx, 'Case'] = 3
-            else:
+            if any(future_rows['progress'] == 'not_recov'):
                 targ.loc[idx, 'Case'] = 4
+            else:
+                targ.loc[idx, 'Case'] = 3
 
     return targ.reset_index(drop=True)
 
@@ -287,22 +294,27 @@ def Lactate_up(df, mode = 'mimic'):
         idx = interest.index
         
         Lactate = interest['Lactate']
-        Lactate_up_corrected = []
-        
-        previous_real_value = Lactate.iloc[0]
-        Lactate_up_corrected.append(0)
-        
+        Lactate_up_corrected = [0]  
+
+        previous_value = Lactate.iloc[0]  
+        previous_increase_value = Lactate.iloc[0]  
+        first_increase_detected = False  
+
         for i in range(1, len(Lactate)):
-            if Lactate.iloc[i] != Lactate.iloc[i-1]:
-                
-                if Lactate.iloc[i] > previous_real_value:
-                    Lactate_up_corrected.append(1)
-                    
-                else:
-                    Lactate_up_corrected.append(0)
-                    previous_real_value = Lactate.iloc[i]
+            current_value = Lactate.iloc[i]
+    
+            if current_value > previous_value and not first_increase_detected:
+                Lactate_up_corrected.append(1)
+                previous_increase_value = current_value  
+                first_increase_detected = True 
+            elif current_value == previous_increase_value and first_increase_detected:
+               
+                Lactate_up_corrected.append(1)
             else:
-                Lactate_up_corrected.append(Lactate_up_corrected[-1])
+              
+                Lactate_up_corrected.append(0)
+
+            previous_value = current_value 
                
         
         data.loc[idx, 'lactate_up'] = np.array(Lactate_up_corrected)
@@ -319,6 +331,15 @@ def detorioration_filter_stay_ids(group):
         return True
     return False
 
+def number(df, mode):
+    
+    if mode == 'mimic':
+        print('number of subject :', len(df.drop_duplicates(subset=["subject_id"])))
+        print('number of stay :', len(df.drop_duplicates(subset=["stay_id"])))
+        
+    else:
+        print('number of subject :', len(df.drop_duplicates(subset=["uniquepid"])))
+        print('number of stay :', len(df.drop_duplicates(subset=["patientunitstayid"])))
 
 def Case_definetion(df, mode):
     data = df.copy()
@@ -333,8 +354,11 @@ def Case_definetion(df, mode):
     
     case1_stay_ids = []
     for stay_id, group in data.groupby(stay_id_id):
-        if all(group['Annotation'] == 'no_circ'):
+        if any(group['Annotation'] == 'no_circ') & any(group['Annotation'] == 'circ') & any(group['Annotation'] == 'ambiguous'):
             case1_stay_ids.append(stay_id)
+    data = data[data[stay_id_id].isin(case1_stay_ids)].reset_index(drop=True)
+    
+    number(data, mode)
     
     print('Extract Case 1, Case 2')        
     case2 = get_case2(data, event='circ', mode = mode)
@@ -352,6 +376,7 @@ def Case_definetion(df, mode):
     case1_case2['Case'] = case1_case2['Case'].fillna('event') 
     case1_case2 = Lactate_up(case1_case2, mode)
     case1_case2['progress'] = 0
+    case1_case2['after_shock_annotation'] = 'before_experience_shock'
     print('--------------')
     
     print('Extract Case 3, Case 4')        
@@ -359,7 +384,8 @@ def Case_definetion(df, mode):
     case3_case4 = Lactate_up(pd.concat(case3_4), mode)
     case3_case4 = recov_Annotation(case3_case4, mode)
     case3_case_4 = Case3_Case4_labeler(case3_case4, mode)
-    case3_case_4['progress'] = case3_case_4['progress'].map({'not_recov': 1, 'recov': 2})
+    case3_case_4['after_shock_annotation'] = case3_case_4['progress'].copy()
+    case3_case_4['progress'] = case3_case_4['progress'].map({'not_recov': 1, 'recov': 1})
     
     return case1_case2, case3_case_4
     

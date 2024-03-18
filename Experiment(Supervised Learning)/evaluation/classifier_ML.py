@@ -4,6 +4,27 @@ from sklearn import svm
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 from sklearn.ensemble import RandomForestClassifier
+import os
+from sklearn.calibration import CalibratedClassifierCV
+
+from sklearn.ensemble import AdaBoostClassifier
+from catboost import CatBoostClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.neighbors import KNeighborsClassifier
+
+# dll_directory = r'C:\Users\DAHS\anaconda3\envs\DL\Lib\site-packages\thundersvm'
+# original_path = os.environ['PATH']
+
+# os.environ['PATH'] = dll_directory + ';' + original_path
+# try:
+#     from thundersvm import SVC
+# finally:
+#     os.environ['PATH'] = original_path
+
+from sklearn.svm import LinearSVC
+
+from sklearn.pipeline import make_pipeline
+from sklearn.multiclass import OneVsRestClassifier
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import precision_recall_curve, auc
 
@@ -24,8 +45,8 @@ def classifier(algorithm, x, y, x_valid, valid_output, mode = 'emb'):
     if mode == 'emb':
  
         if algorithm == 'lgbm':
-            # lgbm_wrapper = LGBMClassifier(n_estimators=100, random_state=42, extra_trees = True, verbose=-1, class_weight='balanced')
-            lgbm_wrapper = LGBMClassifier(n_estimators = 10, random_state = 42, extra_trees = True, verbose=-1)
+            # lgbm_wrapper = LGBMClassifier(n_estimators = 10, random_state = 42, extra_trees = True, verbose=-1)
+            lgbm_wrapper = LGBMClassifier(random_state = 42, verbose=-1)
             
             lgbm_wrapper.fit(x, y)
             
@@ -36,7 +57,7 @@ def classifier(algorithm, x, y, x_valid, valid_output, mode = 'emb'):
             return lgbm_wrapper, valid_output
         
         elif algorithm == 'xgb':
-            xgbm = XGBClassifier(n_estimators=100, random_state=42)
+            xgbm = XGBClassifier(random_state=42)
             xgbm.fit(x, y-1)
             
             valid_preds = xgbm.predict(x_valid)
@@ -47,7 +68,7 @@ def classifier(algorithm, x, y, x_valid, valid_output, mode = 'emb'):
             return xgbm, valid_output
         
         elif algorithm == 'rf':
-            rf = RandomForestClassifier(n_estimators = 10, random_state = 42)
+            rf = RandomForestClassifier(random_state = 42)
             rf.fit(x, y)
             
             valid_preds = rf.predict(x_valid)
@@ -80,10 +101,88 @@ def classifier(algorithm, x, y, x_valid, valid_output, mode = 'emb'):
             valid_output['prediction_prob'] = logit_regression.predict_proba(x_valid_scaled)[:, 1]
             
             return logit_regression, valid_output
+        
+        # elif algorithm == 'svm-ovo':
+            
+        #     mMscaler = MinMaxScaler()
+        #     mMscaler.fit(x)
+        #     x_scaled = mMscaler.transform(x)
+        #     x_valid_scaled = mMscaler.transform(x_valid)
+            
+        #     svc_ovo = Smake_pipeline(LinearSVC(dual='auto', random_state=42, tol=1e-05, multi_class = 'crammer_single'))
+        #     svc_ovo.fit(x_scaled, y)
+
+        #     valid_preds = svc_ovo.predict(x_valid_scaled)
+        #     valid_output['prediction_label'] = valid_preds
+        #     valid_output['prediction_prob'] = svc_ovo.predict_proba(x_valid_scaled)[:, 1]
+      
+        #     return svc_ovo, valid_output
+        
+        elif algorithm == 'svm-ovr':
+            
+            mMscaler = MinMaxScaler()
+            mMscaler.fit(x)
+            x_scaled = mMscaler.transform(x)
+            x_valid_scaled = mMscaler.transform(x_valid)
+    
+            svc_ovr = LinearSVC(dual='auto', random_state=42, tol=1e-05, multi_class = 'ovr')
+            calibrated_svm = CalibratedClassifierCV(svc_ovr)
+            
+            calibrated_svm.fit(x_scaled, y)
+
+            valid_preds = calibrated_svm.predict(x_valid_scaled)
+            valid_output['prediction_label'] = valid_preds
+            valid_output['prediction_prob'] = calibrated_svm.predict_proba(x_valid_scaled)[:, 1]
+      
+            return calibrated_svm, valid_output
+        
+        
+        elif algorithm == 'catboost':
+            cat = CatBoostClassifier(random_state=42, has_time = True, verbose=False)
+            cat.fit(x, y)
+            
+            valid_preds = cat.predict(x_valid)
+            valid_output['prediction_label'] = valid_preds
+            valid_output['prediction_prob'] = cat.predict_proba(x_valid)[:, 1]
+        
+            return cat, valid_output
+        
+        elif algorithm == 'naivebayes':
+            
+            mMscaler = MinMaxScaler()
+            mMscaler.fit(x)
+            x_scaled = mMscaler.transform(x)
+            x_valid_scaled = mMscaler.transform(x_valid)
+            
+            nb = GaussianNB()
+            nb.fit(x, y)
+            
+            valid_preds = nb.predict(x_valid)
+            valid_output['prediction_label'] = valid_preds
+            valid_output['prediction_prob'] = nb.predict_proba(x_valid)[:, 1]
+        
+            return nb, valid_output
+        
+        elif algorithm == 'knn':
+            
+            mMscaler = MinMaxScaler()
+            mMscaler.fit(x)
+            x_scaled = mMscaler.transform(x)
+            x_valid_scaled = mMscaler.transform(x_valid)
+            
+            knn = KNeighborsClassifier(weights = 'distance')
+            knn.fit(x, y)
+            
+            valid_preds = knn.predict(x_valid)
+            valid_output['prediction_label'] = valid_preds
+            valid_output['prediction_prob'] = knn.predict_proba(x_valid)[:, 1]
+        
+            return knn, valid_output
         
     else:
         if algorithm == 'lgbm':
-            lgbm_wrapper = LGBMClassifier(n_estimators = 10, random_state = 42, extra_trees = True, verbose=-1)
+            # lgbm_wrapper = LGBMClassifier(n_estimators = 10, random_state = 42, extra_trees = True, verbose=-1)
+            lgbm_wrapper = LGBMClassifier(random_state = 42, verbose=-1)
             lgbm_wrapper.fit(x, y)
             
             valid_preds = lgbm_wrapper.predict(x_valid)
@@ -93,7 +192,7 @@ def classifier(algorithm, x, y, x_valid, valid_output, mode = 'emb'):
             return lgbm_wrapper, valid_output
         
         elif algorithm == 'xgb':
-            xgbm = XGBClassifier(n_estimators=100, random_state=42)
+            xgbm = XGBClassifier(random_state=42)
             xgbm.fit(x, y-1)
             
             valid_preds = xgbm.predict(x_valid)
@@ -104,7 +203,7 @@ def classifier(algorithm, x, y, x_valid, valid_output, mode = 'emb'):
             return xgbm, valid_output
         
         elif algorithm == 'rf':
-            rf = RandomForestClassifier(n_estimators=10, random_state=42)
+            rf = RandomForestClassifier(random_state=42)
             rf.fit(x, y)
             
             valid_preds = rf.predict(x_valid)
@@ -137,6 +236,84 @@ def classifier(algorithm, x, y, x_valid, valid_output, mode = 'emb'):
             valid_output['prediction_prob'] = logit_regression.predict_proba(x_valid_scaled)[:, 1]
             
             return logit_regression, valid_output
+        
+        # elif algorithm == 'svm-ovo':
+            
+        #     mMscaler = MinMaxScaler()
+        #     mMscaler.fit(x)
+        #     x_scaled = mMscaler.transform(x)
+        #     x_valid_scaled = mMscaler.transform(x_valid)
+            
+        #     svc_ovo = SVC(kernel='linear', probability=True, decision_function_shape='ovo')
+        #     svc_ovo.fit(x_scaled, y)
+
+        #     valid_preds = svc_ovo.predict(x_valid_scaled)
+        #     valid_output['prediction_label'] = valid_preds
+        #     valid_output['prediction_prob'] = svc_ovo.predict_proba(x_valid_scaled)[:, 1]
+      
+        #     return svc_ovo, valid_output
+        
+        elif algorithm == 'svm-ovr':
+            
+            mMscaler = MinMaxScaler()
+            mMscaler.fit(x)
+            x_scaled = mMscaler.transform(x)
+            x_valid_scaled = mMscaler.transform(x_valid)
+    
+            svc_ovr = LinearSVC(dual='auto', random_state=42, tol=1e-05, multi_class = 'ovr')
+            calibrated_svm = CalibratedClassifierCV(svc_ovr)
+            
+            calibrated_svm.fit(x_scaled, y)
+
+            valid_preds = calibrated_svm.predict(x_valid_scaled)
+            valid_output['prediction_label'] = valid_preds
+            valid_output['prediction_prob'] = calibrated_svm.predict_proba(x_valid_scaled)[:, 1]
+      
+            return calibrated_svm, valid_output
+        
+        
+        
+        elif algorithm == 'catboost':
+            cat = CatBoostClassifier(random_state=42, has_time = True, verbose=False)
+            cat.fit(x, y)
+            
+            valid_preds = cat.predict(x_valid)
+            valid_output['prediction_label'] = valid_preds
+            valid_output['prediction_prob'] = cat.predict_proba(x_valid)[:, 1]
+        
+            return cat, valid_output
+        
+        elif algorithm == 'naivebayes':
+            
+            mMscaler = MinMaxScaler()
+            mMscaler.fit(x)
+            x_scaled = mMscaler.transform(x)
+            x_valid_scaled = mMscaler.transform(x_valid)
+            
+            nb = GaussianNB()
+            nb.fit(x, y)
+            
+            valid_preds = nb.predict(x_valid)
+            valid_output['prediction_label'] = valid_preds
+            valid_output['prediction_prob'] = nb.predict_proba(x_valid)[:, 1]
+        
+            return nb, valid_output
+        
+        elif algorithm == 'knn':
+            
+            mMscaler = MinMaxScaler()
+            mMscaler.fit(x)
+            x_scaled = mMscaler.transform(x)
+            x_valid_scaled = mMscaler.transform(x_valid)
+            
+            knn = KNeighborsClassifier(weights = 'distance')
+            knn.fit(x, y)
+            
+            valid_preds = knn.predict(x_valid)
+            valid_output['prediction_label'] = valid_preds
+            valid_output['prediction_prob'] = knn.predict_proba(x_valid)[:, 1]
+        
+            return knn, valid_output
 
 
 def event_metric(event,inference_output,mode, model_name):
@@ -160,6 +337,10 @@ def event_metric(event,inference_output,mode, model_name):
 
     total_set = pd.concat([event_set_reset, output_set_reset], axis = 0, ignore_index=True).reset_index(drop=True).sort_values(by='Time_since_ICU_admission')
 
+    
+    #### amb는 평가에서 제외해보자
+    total_set = total_set[~(total_set['Annotation']=='ambiguous')]
+    ###
     total_event = event_set.Case.value_counts()['event']
     captured_event = 0
 
@@ -178,14 +359,17 @@ def event_metric(event,inference_output,mode, model_name):
             total_event += 1
             event_time = interest['Time_since_ICU_admission'].iloc[-1]
             time_window = event_time - 8
-            capture_before_8h = interest[(interest['Time_since_ICU_admission'] > time_window) & (interest['Time_since_ICU_admission'] < event_time)]
+            capture_before_8h = interest[(interest['Time_since_ICU_admission'] >= time_window) & (interest['Time_since_ICU_admission'] < event_time)]
             
-            if capture_before_8h['prediction_label'].sum() >= 1:
-                captured_event += 1
-                captured_trajectory.append(stayid)
-            
-            else:
-                non_captured_trajectory.append(stayid)
+            ### amb는 평가에서 제외해보자
+            if len(capture_before_8h) >= 1:
+            ###
+                if capture_before_8h['prediction_label'].sum() >= 1:
+                    captured_event += 1
+                    captured_trajectory.append(stayid)
+                
+                else:
+                    non_captured_trajectory.append(stayid)
                 
                 
     for stayid in total_set[icu_stay].unique():
