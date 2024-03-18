@@ -28,9 +28,10 @@ def main(os):
 
     mimic = pd.read_csv(mimic_path, compression = 'gzip')
     mimic = mimic[mimic['INDEX']=='CASE3_CASE4_DF'].reset_index(drop=True)
+    mimic = mimic[~((mimic['INDEX']=='CASE3_CASE4_DF')&(mimic['Annotation']=='no_circ'))]
     eicu = pd.read_csv(eicu_path, compression = 'gzip')
     eicu = eicu[eicu['INDEX']=='CASE3_CASE4_DF'].reset_index(drop=True)
-
+    eicu = eicu[~((eicu['INDEX']=='CASE3_CASE4_DF')&(eicu['Annotation']=='no_circ'))]
     print('Creating Mortality next 24h Task...')
     mortality_24h_prediction(mimic, eicu, mimic_mort_path, eicu_mort_path, save_path)
     print('Finish!')

@@ -22,22 +22,22 @@ def mortality_prediction_DATA(mimic_train, mimic_valid, eicu_test, os_env):
     mort_mimic_valid.dropna(inplace=True)
     mort_eicu_test.dropna(inplace=True)
 
-    drop_stayid = []
+    remain_stayid = []
     for stay_id, group in mort_mimic_train.groupby('stay_id'):
         if any(group['death'] == 'event'):
-            drop_stayid.append(stay_id)
+            remain_stayid.append(stay_id)
             
     for stay_id, group in mort_mimic_valid.groupby('stay_id'):
         if any(group['death'] == 'event'):
-            drop_stayid.append(stay_id)
+            remain_stayid.append(stay_id)
             
     for stay_id, group in mort_eicu_test.groupby('patientunitstayid'):
         if any(group['death'] == 'event'):
-            drop_stayid.append(stay_id)
+            remain_stayid.append(stay_id)
 
-    mort_mimic_train = mort_mimic_train[(mort_mimic_train['stay_id'].isin(drop_stayid))].reset_index(drop=True)
-    mort_mimic_valid = mort_mimic_valid[(mort_mimic_valid['stay_id'].isin(drop_stayid))].reset_index(drop=True)
-    mort_eicu_test = mort_eicu_test[(mort_eicu_test['patientunitstayid'].isin(drop_stayid))].reset_index(drop=True)
+    mort_mimic_train = mort_mimic_train[(mort_mimic_train['stay_id'].isin(remain_stayid))].reset_index(drop=True)
+    mort_mimic_valid = mort_mimic_valid[(mort_mimic_valid['stay_id'].isin(remain_stayid))].reset_index(drop=True)
+    mort_eicu_test = mort_eicu_test[(mort_eicu_test['patientunitstayid'].isin(remain_stayid))].reset_index(drop=True)
     
     return mort_mimic_train.fillna(0), mort_mimic_valid.fillna(0), mort_eicu_test.fillna(0)
 
