@@ -2,18 +2,26 @@ import pandas as pd
 import numpy as np
 
 
-def mortality_prediction_DATA(mimic_train, mimic_valid, eicu_test):
+def mortality_prediction_DATA(mimic_train, mimic_valid, eicu_test, os_env):
     
-    mort_mimic_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/mimic_mort_24h.csv.gz'
-    mort_eicu_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/eicu_mort_24h.csv.gz'
+    if os_env == 'window':
+        mort_mimic_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/mimic_mort_24h.csv.gz'
+        mort_eicu_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/eicu_mort_24h.csv.gz'
+    else:
+        mort_mimic_path = '/Users/gwonjeong-eul/Desktop/ecp-scl-macbook/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/mimic_mort_24h.csv.gz'
+        mort_eicu_path = '/Users/gwonjeong-eul/Desktop/ecp-scl-macbook/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/eicu_mort_24h.csv.gz'
 
     mort_mimic = pd.read_csv(mort_mimic_path, compression = 'gzip', index_col=0)
     mort_eicu = pd.read_csv(mort_eicu_path, compression = 'gzip', index_col=0)
     
-    mort_mimic_train = pd.merge(mimic_train.drop(['Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), mort_mimic, how = 'left', on = ['subject_id', 'stay_id', 'Time_since_ICU_admission'])
-    mort_mimic_valid = pd.merge(mimic_valid.drop(['Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), mort_mimic, how = 'left', on = ['subject_id', 'stay_id', 'Time_since_ICU_admission'])
-    mort_eicu_test = pd.merge(eicu_test.drop(['Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), mort_eicu, how = 'left', on = ['uniquepid', 'patientunitstayid', 'Time_since_ICU_admission'])
+    mort_mimic_train = pd.merge(mimic_train.drop(['after_shock_annotation', 'Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), mort_mimic, how = 'left', on = ['subject_id', 'stay_id', 'Time_since_ICU_admission'])
+    mort_mimic_valid = pd.merge(mimic_valid.drop(['after_shock_annotation', 'Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), mort_mimic, how = 'left', on = ['subject_id', 'stay_id', 'Time_since_ICU_admission'])
+    mort_eicu_test = pd.merge(eicu_test.drop(['after_shock_annotation', 'Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), mort_eicu, how = 'left', on = ['uniquepid', 'patientunitstayid', 'Time_since_ICU_admission'])
     
+    mort_mimic_train.dropna(inplace=True)
+    mort_mimic_valid.dropna(inplace=True)
+    mort_eicu_test.dropna(inplace=True)
+
     drop_stayid = []
     for stay_id, group in mort_mimic_train.groupby('stay_id'):
         if any(group['death'] == 'event'):
@@ -31,26 +39,39 @@ def mortality_prediction_DATA(mimic_train, mimic_valid, eicu_test):
     mort_mimic_valid = mort_mimic_valid[(mort_mimic_valid['stay_id'].isin(drop_stayid))].reset_index(drop=True)
     mort_eicu_test = mort_eicu_test[(mort_eicu_test['patientunitstayid'].isin(drop_stayid))].reset_index(drop=True)
     
-    return mort_mimic_train, mort_mimic_valid, mort_eicu_test
+    return mort_mimic_train.fillna(0), mort_mimic_valid.fillna(0), mort_eicu_test.fillna(0)
 
-def LOS_prediction_DATA(mimic_train, mimic_valid, eicu_test):
-    
-    los_mimic_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/mimic_remain_los.csv.gz'
-    los_eicu_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/eicu_remain_los.csv.gz'
+def LOS_prediction_DATA(mimic_train, mimic_valid, eicu_test, os_env):
+
+    if os_env == 'window':
+        los_mimic_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/mimic_remain_los.csv.gz'
+        los_eicu_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/eicu_remain_los.csv.gz'
+    else:
+        los_mimic_path = '/Users/gwonjeong-eul/Desktop/ecp-scl-macbook/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/mimic_remain_los.csv.gz'
+        los_eicu_path = '/Users/gwonjeong-eul/Desktop/ecp-scl-macbook/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/eicu_remain_los.csv.gz'
 
     los_mimic = pd.read_csv(los_mimic_path, compression = 'gzip', index_col=0)
     los_eicu = pd.read_csv(los_eicu_path, compression = 'gzip', index_col=0)
     
-    los_mimic_train = pd.merge(mimic_train.drop(['Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), los_mimic, how = 'left', on = ['subject_id', 'stay_id', 'Time_since_ICU_admission'])
-    los_mimic_valid = pd.merge(mimic_valid.drop(['Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), los_mimic, how = 'left', on = ['subject_id', 'stay_id', 'Time_since_ICU_admission'])
-    los_eicu_test = pd.merge(eicu_test.drop(['Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), los_eicu, how = 'left', on = ['uniquepid', 'patientunitstayid', 'Time_since_ICU_admission'])
+    los_mimic_train = pd.merge(mimic_train.drop(['after_shock_annotation', 'Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), los_mimic, how = 'left', on = ['subject_id', 'stay_id', 'Time_since_ICU_admission'])
+    los_mimic_valid = pd.merge(mimic_valid.drop(['after_shock_annotation', 'Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), los_mimic, how = 'left', on = ['subject_id', 'stay_id', 'Time_since_ICU_admission'])
+    los_eicu_test = pd.merge(eicu_test.drop(['after_shock_annotation', 'Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), los_eicu, how = 'left', on = ['uniquepid', 'patientunitstayid', 'Time_since_ICU_admission'])
     
+    los_mimic_train.dropna(inplace=True)
+    los_mimic_valid.dropna(inplace=True)
+    los_eicu_test.dropna(inplace=True)
+
     return los_mimic_train, los_mimic_valid, los_eicu_test
 
-def ARDS4_prediction_DATA(mimic_train, mimic_valid, eicu_test):
+def ARDS4_prediction_DATA(mimic_train, mimic_valid, eicu_test, os_env):
     
-    ards4h_mimic_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/mimic_ards_4h.csv.gz'
-    ards4h_eicu_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/eicu_ards_4h.csv.gz'
+    if os_env == 'window':
+        ards4h_mimic_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/mimic_ards_4h.csv.gz'
+        ards4h_eicu_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/eicu_ards_4h.csv.gz'
+    else:
+        ards4h_mimic_path = '/Users/gwonjeong-eul/Desktop/ecp-scl-macbook/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/mimic_ards_4h.csv.gz'
+        ards4h_eicu_path = '/Users/gwonjeong-eul/Desktop/ecp-scl-macbook/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/eicu_ards_4h.csv.gz'
+
 
     ards4h_mimic = pd.read_csv(ards4h_mimic_path, compression = 'gzip', index_col=0)
     ards4h_eicu = pd.read_csv(ards4h_eicu_path, compression = 'gzip', index_col=0)
@@ -61,53 +82,49 @@ def ARDS4_prediction_DATA(mimic_train, mimic_valid, eicu_test):
     ards4h_eicu.replace([np.inf, -np.inf], np.nan, inplace=True)
     ards4h_eicu.fillna(0, inplace=True) 
     
-    ards4h_mimic_train = pd.merge(mimic_train.drop(['Annotation', 'Case', 'Shock_next_8h', 'INDEX', 'PaO2/FiO2'], axis = 1), ards4h_mimic.drop(['PEEP','PaO2', 'FIO2 (%)'], axis = 1), how = 'left', on = ['subject_id', 'stay_id', 'Time_since_ICU_admission'])
-    ards4h_mimic_valid = pd.merge(mimic_valid.drop(['Annotation', 'Case', 'Shock_next_8h', 'INDEX', 'PaO2/FiO2'], axis = 1), ards4h_mimic.drop(['PEEP','PaO2', 'FIO2 (%)'], axis = 1), how = 'left', on = ['subject_id', 'stay_id', 'Time_since_ICU_admission'])
-    ards4h_eicu_test = pd.merge(eicu_test.drop(['Annotation', 'Case', 'Shock_next_8h', 'INDEX', 'PaO2/FiO2'], axis = 1), ards4h_eicu.drop(['PEEP','PaO2', 'FIO2 (%)'], axis = 1), how = 'left', on = ['uniquepid', 'patientunitstayid', 'Time_since_ICU_admission'])
+    ards4h_mimic_train = pd.merge(mimic_train.drop(['after_shock_annotation', 'Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), ards4h_mimic.drop(['PEEP','PaO2', 'FIO2 (%)', 'PaO2/FiO2'], axis = 1), how = 'left', on = ['subject_id', 'stay_id', 'Time_since_ICU_admission'])
+    ards4h_mimic_valid = pd.merge(mimic_valid.drop(['after_shock_annotation', 'Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), ards4h_mimic.drop(['PEEP','PaO2', 'FIO2 (%)', 'PaO2/FiO2'], axis = 1), how = 'left', on = ['subject_id', 'stay_id', 'Time_since_ICU_admission'])
+    ards4h_eicu_test = pd.merge(eicu_test.drop(['after_shock_annotation', 'Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), ards4h_eicu.drop(['PEEP','PaO2', 'FIO2 (%)', 'PaO2/FiO2'], axis = 1), how = 'left', on = ['uniquepid', 'patientunitstayid', 'Time_since_ICU_admission'])
     
-    
-    drop_stayid = []
-    retain_stay_id = []
-    for stay_id, group in ards4h_mimic_train.groupby('stay_id'):
-        if any(group['Annotation_ARDS'] == 'ARDS'):
-            if all(group['Annotation_ARDS'] == 'ARDS'):
-                drop_stayid.append(stay_id)
-            else:
-                retain_stay_id.append(stay_id)
-            
-    for stay_id, group in ards4h_mimic_valid.groupby('stay_id'):
-        if any(group['Annotation_ARDS'] == 'ARDS'):
-            if all(group['Annotation_ARDS'] == 'ARDS'):
-                drop_stayid.append(stay_id)
-            else:
-                retain_stay_id.append(stay_id)
-            
-    for stay_id, group in ards4h_eicu_test.groupby('patientunitstayid'):
-        if any(group['Annotation_ARDS'] == 'ARDS'):
-            if all(group['Annotation_ARDS'] == 'ARDS'):
-                drop_stayid.append(stay_id)
-            else:
-                retain_stay_id.append(stay_id)
-            
-    ards4h_mimic_train = ards4h_mimic_train[(ards4h_mimic_train['stay_id'].isin(retain_stay_id))].reset_index(drop=True)
-    ards4h_mimic_valid = ards4h_mimic_valid[(ards4h_mimic_valid['stay_id'].isin(retain_stay_id))].reset_index(drop=True)
-    ards4h_eicu_test = ards4h_eicu_test[(ards4h_eicu_test['patientunitstayid'].isin(retain_stay_id))].reset_index(drop=True)
-    
+    ards4h_mimic_train.dropna(inplace=True)
+    ards4h_mimic_valid.dropna(inplace=True)
+    ards4h_eicu_test.dropna(inplace=True)
     
     ards4h_mimic_train = get_ARDS(ards4h_mimic_train, event='ARDS', mode = 'mimic')
     ards4h_mimic_valid = get_ARDS(ards4h_mimic_valid, event='ARDS', mode = 'mimic')
     ards4h_eicu_test = get_ARDS(ards4h_eicu_test, event='ARDS', mode = 'eicu')
     
-    ards4h_mimic_train = ards4h_mimic_train[(ards4h_mimic_train['stay_id'].isin(retain_stay_id))].reset_index(drop=True)
-    ards4h_mimic_valid = ards4h_mimic_valid[(ards4h_mimic_valid['stay_id'].isin(retain_stay_id))].reset_index(drop=True)
-    ards4h_eicu_test = ards4h_eicu_test[(ards4h_eicu_test['patientunitstayid'].isin(retain_stay_id))].reset_index(drop=True)
+    drop_stayid = []
+    for stay_id, group in ards4h_mimic_train.groupby('stay_id'):
+        if any(group['Annotation_ARDS'] == 'ARDS'):
+            if all(group['Annotation_ARDS'] == 'ARDS'):
+                drop_stayid.append(stay_id)
+            
+    for stay_id, group in ards4h_mimic_valid.groupby('stay_id'):
+        if any(group['Annotation_ARDS'] == 'ARDS'):
+            if all(group['Annotation_ARDS'] == 'ARDS'):
+                drop_stayid.append(stay_id)
+            
+    for stay_id, group in ards4h_eicu_test.groupby('patientunitstayid'):
+        if any(group['Annotation_ARDS'] == 'ARDS'):
+            if all(group['Annotation_ARDS'] == 'ARDS'):
+                drop_stayid.append(stay_id)
+
+    ards4h_mimic_train = ards4h_mimic_train[~(ards4h_mimic_train['stay_id'].isin(drop_stayid))].reset_index(drop=True)
+    ards4h_mimic_valid = ards4h_mimic_valid[~(ards4h_mimic_valid['stay_id'].isin(drop_stayid))].reset_index(drop=True)
+    ards4h_eicu_test = ards4h_eicu_test[~(ards4h_eicu_test['patientunitstayid'].isin(drop_stayid))].reset_index(drop=True)
     
     return ards4h_mimic_train, ards4h_mimic_valid, ards4h_eicu_test
 
-def ARDS8_prediction_DATA(mimic_train, mimic_valid, eicu_test):
+def ARDS8_prediction_DATA(mimic_train, mimic_valid, eicu_test, os_env):
     
-    ards8h_mimic_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/mimic_ards_8h.csv.gz'
-    ards8h_eicu_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/eicu_ards_8h.csv.gz'
+    if os_env == 'window':
+        ards8h_mimic_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/mimic_ards_8h.csv.gz'
+        ards8h_eicu_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/eicu_ards_8h.csv.gz'
+    else:
+        ards8h_mimic_path = '/Users/gwonjeong-eul/Desktop/ecp-scl-macbook/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/mimic_ards_8h.csv.gz'
+        ards8h_eicu_path = '/Users/gwonjeong-eul/Desktop/ecp-scl-macbook/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/eicu_ards_8h.csv.gz'
+
 
     ards8h_mimic = pd.read_csv(ards8h_mimic_path, compression = 'gzip', index_col=0)
     ards8h_eicu = pd.read_csv(ards8h_eicu_path, compression = 'gzip', index_col=0)
@@ -120,150 +137,131 @@ def ARDS8_prediction_DATA(mimic_train, mimic_valid, eicu_test):
     ards8h_eicu.fillna(0, inplace=True) 
     
     
-    ards8h_mimic_train = pd.merge(mimic_train.drop(['Annotation', 'Case', 'Shock_next_8h', 'INDEX', 'PaO2/FiO2'], axis = 1), ards8h_mimic.drop(['PEEP','PaO2', 'FIO2 (%)'], axis = 1), how = 'left', on = ['subject_id', 'stay_id', 'Time_since_ICU_admission'])
-    ards8h_mimic_valid = pd.merge(mimic_valid.drop(['Annotation', 'Case', 'Shock_next_8h', 'INDEX', 'PaO2/FiO2'], axis = 1), ards8h_mimic.drop(['PEEP','PaO2', 'FIO2 (%)'], axis = 1), how = 'left', on = ['subject_id', 'stay_id', 'Time_since_ICU_admission'])
-    ards8h_eicu_test = pd.merge(eicu_test.drop(['Annotation', 'Case', 'Shock_next_8h', 'INDEX', 'PaO2/FiO2'], axis = 1), ards8h_eicu.drop(['PEEP','PaO2', 'FIO2 (%)'], axis = 1), how = 'left', on = ['uniquepid', 'patientunitstayid', 'Time_since_ICU_admission'])
+    ards8h_mimic_train = pd.merge(mimic_train.drop(['after_shock_annotation', 'Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), ards8h_mimic.drop(['PEEP','PaO2', 'FIO2 (%)', 'PaO2/FiO2'], axis = 1), how = 'left', on = ['subject_id', 'stay_id', 'Time_since_ICU_admission'])
+    ards8h_mimic_valid = pd.merge(mimic_valid.drop(['after_shock_annotation', 'Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), ards8h_mimic.drop(['PEEP','PaO2', 'FIO2 (%)', 'PaO2/FiO2'], axis = 1), how = 'left', on = ['subject_id', 'stay_id', 'Time_since_ICU_admission'])
+    ards8h_eicu_test = pd.merge(eicu_test.drop(['after_shock_annotation', 'Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), ards8h_eicu.drop(['PEEP','PaO2', 'FIO2 (%)', 'PaO2/FiO2'], axis = 1), how = 'left', on = ['uniquepid', 'patientunitstayid', 'Time_since_ICU_admission'])
+    
+    ards8h_mimic_train.dropna(inplace=True)
+    ards8h_mimic_valid.dropna(inplace=True)
+    ards8h_eicu_test.dropna(inplace=True)
+            
+    ards8h_mimic_train = get_ARDS(ards8h_mimic_train, event='ARDS', mode = 'mimic')
+    ards8h_mimic_valid = get_ARDS(ards8h_mimic_valid, event='ARDS', mode = 'mimic')
+    ards8h_eicu_test = get_ARDS(ards8h_eicu_test, event='ARDS', mode = 'eicu')
     
     drop_stayid = []
-    retain_stay_id = []
     for stay_id, group in ards8h_mimic_train.groupby('stay_id'):
         if any(group['Annotation_ARDS'] == 'ARDS'):
             if all(group['Annotation_ARDS'] == 'ARDS'):
                 drop_stayid.append(stay_id)
-            else:
-                retain_stay_id.append(stay_id)
             
     for stay_id, group in ards8h_mimic_valid.groupby('stay_id'):
         if any(group['Annotation_ARDS'] == 'ARDS'):
             if all(group['Annotation_ARDS'] == 'ARDS'):
                 drop_stayid.append(stay_id)
-            else:
-                retain_stay_id.append(stay_id)
             
     for stay_id, group in ards8h_eicu_test.groupby('patientunitstayid'):
         if any(group['Annotation_ARDS'] == 'ARDS'):
             if all(group['Annotation_ARDS'] == 'ARDS'):
                 drop_stayid.append(stay_id)
-            else:
-                retain_stay_id.append(stay_id)
-            
-    ards8h_mimic_train = ards8h_mimic_train[(ards8h_mimic_train['stay_id'].isin(retain_stay_id))].reset_index(drop=True)
-    ards8h_mimic_valid = ards8h_mimic_valid[(ards8h_mimic_valid['stay_id'].isin(retain_stay_id))].reset_index(drop=True)
-    ards8h_eicu_test = ards8h_eicu_test[(ards8h_eicu_test['patientunitstayid'].isin(retain_stay_id))].reset_index(drop=True)
     
-    
-    ards8h_mimic_train = get_ARDS(ards8h_mimic_train, event='ARDS', mode = 'mimic')
-    ards8h_mimic_valid = get_ARDS(ards8h_mimic_valid, event='ARDS', mode = 'mimic')
-    ards8h_eicu_test = get_ARDS(ards8h_eicu_test, event='ARDS', mode = 'eicu')
-    
-    
-    ards8h_mimic_train = ards8h_mimic_train[(ards8h_mimic_train['stay_id'].isin(retain_stay_id))].reset_index(drop=True)
-    ards8h_mimic_valid = ards8h_mimic_valid[(ards8h_mimic_valid['stay_id'].isin(retain_stay_id))].reset_index(drop=True)
-    ards8h_eicu_test = ards8h_eicu_test[(ards8h_eicu_test['patientunitstayid'].isin(retain_stay_id))].reset_index(drop=True)
+    ards8h_mimic_train = ards8h_mimic_train[~(ards8h_mimic_train['stay_id'].isin(drop_stayid))].reset_index(drop=True)
+    ards8h_mimic_valid = ards8h_mimic_valid[~(ards8h_mimic_valid['stay_id'].isin(drop_stayid))].reset_index(drop=True)
+    ards8h_eicu_test = ards8h_eicu_test[~(ards8h_eicu_test['patientunitstayid'].isin(drop_stayid))].reset_index(drop=True)
     
     return ards8h_mimic_train, ards8h_mimic_valid, ards8h_eicu_test
 
-
-def SIC4_prediction_DATA(mimic_train, mimic_valid, eicu_test):
+def SIC4_prediction_DATA(mimic_train, mimic_valid, eicu_test, os_env):
     
-    sics4h_mimic_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/mimic_sic_4h.csv.gz'
-    sics4h_eicu_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/eicu_sic_4h.csv.gz'
+    if os_env == 'window':
+        sics4h_mimic_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/mimic_sic_4h.csv.gz'
+        sics4h_eicu_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/eicu_sic_4h.csv.gz'
+    else:
+        sics4h_mimic_path = '/Users/gwonjeong-eul/Desktop/ecp-scl-macbook/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/mimic_sic_4h.csv.gz'
+        sics4h_eicu_path = '/Users/gwonjeong-eul/Desktop/ecp-scl-macbook/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/eicu_sic_4h.csv.gz'
 
     sics4h_mimic = pd.read_csv(sics4h_mimic_path, compression = 'gzip', index_col=0)
     sics4h_eicu = pd.read_csv(sics4h_eicu_path, compression = 'gzip', index_col=0)
     
-    sics4h_mimic_train = pd.merge(mimic_train.drop(['Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), sics4h_mimic, how = 'inner', on = ['subject_id', 'stay_id', 'Time_since_ICU_admission'])
-    sics4h_mimic_valid = pd.merge(mimic_valid.drop(['Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), sics4h_mimic, how = 'inner', on = ['subject_id', 'stay_id', 'Time_since_ICU_admission'])
-    sics4h_eicu_test = pd.merge(eicu_test.drop(['Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), sics4h_eicu, how = 'inner', on = ['uniquepid', 'patientunitstayid', 'Time_since_ICU_admission'])
+    sics4h_mimic_train = pd.merge(mimic_train.drop(['after_shock_annotation', 'Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), sics4h_mimic, how = 'inner', on = ['subject_id', 'stay_id', 'Time_since_ICU_admission'])
+    sics4h_mimic_valid = pd.merge(mimic_valid.drop(['after_shock_annotation', 'Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), sics4h_mimic, how = 'inner', on = ['subject_id', 'stay_id', 'Time_since_ICU_admission'])
+    sics4h_eicu_test = pd.merge(eicu_test.drop(['after_shock_annotation', 'Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), sics4h_eicu, how = 'inner', on = ['uniquepid', 'patientunitstayid', 'Time_since_ICU_admission'])
     
-    retain_stay_id = []
+    sics4h_mimic_train.dropna(inplace=True)
+    sics4h_mimic_valid.dropna(inplace=True)
+    sics4h_eicu_test.dropna(inplace=True)
+
+    sics4h_mimic_train = get_SIC(sics4h_mimic_train, event='SIC', mode = 'mimic')
+    sics4h_mimic_valid = get_SIC(sics4h_mimic_valid, event='SIC', mode = 'mimic')
+    sics4h_eicu_test = get_SIC(sics4h_eicu_test, event='SIC', mode = 'eicu')
+
     drop_stayid = []
     for stay_id, group in sics4h_mimic_train.groupby('stay_id'):
         if any(group['Annotation_SIC'] == 'SIC'):
             if all(group['Annotation_SIC'] == 'SIC'):
                 drop_stayid.append(stay_id)
-            else:
-                retain_stay_id.append(stay_id)
             
     for stay_id, group in sics4h_mimic_valid.groupby('stay_id'):
         if any(group['Annotation_SIC'] == 'SIC'):
             if all(group['Annotation_SIC'] == 'SIC'):
                 drop_stayid.append(stay_id)
-            else:
-                retain_stay_id.append(stay_id)
             
     for stay_id, group in sics4h_eicu_test.groupby('patientunitstayid'):
         if any(group['Annotation_SIC'] == 'SIC'):
             if all(group['Annotation_SIC'] == 'SIC'):
                 drop_stayid.append(stay_id)
-            else:
-                retain_stay_id.append(stay_id)
             
-    sics4h_mimic_train = sics4h_mimic_train[(sics4h_mimic_train['stay_id'].isin(retain_stay_id))].reset_index(drop=True)
-    sics4h_mimic_valid = sics4h_mimic_valid[(sics4h_mimic_valid['stay_id'].isin(retain_stay_id))].reset_index(drop=True)
-    sics4h_eicu_test = sics4h_eicu_test[(sics4h_eicu_test['patientunitstayid'].isin(retain_stay_id))].reset_index(drop=True)
-    
-    
-    sics4h_mimic_train = get_SIC(sics4h_mimic_train, event='SIC', mode = 'mimic')
-    sics4h_mimic_valid = get_SIC(sics4h_mimic_valid, event='SIC', mode = 'mimic')
-    sics4h_eicu_test = get_SIC(sics4h_eicu_test, event='SIC', mode = 'eicu')
-    
-    
-    sics4h_mimic_train = sics4h_mimic_train[(sics4h_mimic_train['stay_id'].isin(retain_stay_id))].reset_index(drop=True)
-    sics4h_mimic_valid = sics4h_mimic_valid[(sics4h_mimic_valid['stay_id'].isin(retain_stay_id))].reset_index(drop=True)
-    sics4h_eicu_test = sics4h_eicu_test[(sics4h_eicu_test['patientunitstayid'].isin(retain_stay_id))].reset_index(drop=True)
+    sics4h_mimic_train = sics4h_mimic_train[~(sics4h_mimic_train['stay_id'].isin(drop_stayid))].reset_index(drop=True)
+    sics4h_mimic_valid = sics4h_mimic_valid[~(sics4h_mimic_valid['stay_id'].isin(drop_stayid))].reset_index(drop=True)
+    sics4h_eicu_test = sics4h_eicu_test[~(sics4h_eicu_test['patientunitstayid'].isin(drop_stayid))].reset_index(drop=True)
     
     return sics4h_mimic_train, sics4h_mimic_valid, sics4h_eicu_test
 
 
-def SIC8_prediction_DATA(mimic_train, mimic_valid, eicu_test):
+def SIC8_prediction_DATA(mimic_train, mimic_valid, eicu_test, os_env):
     
-    sics8h_mimic_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/mimic_sic_8h.csv.gz'
-    sics8h_eicu_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/eicu_sic_8h.csv.gz'
+    if os_env == 'window':
+        sics8h_mimic_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/mimic_sic_8h.csv.gz'
+        sics8h_eicu_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/eicu_sic_8h.csv.gz'
+    else:
+        sics8h_mimic_path = '/Users/gwonjeong-eul/Desktop/ecp-scl-macbook/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/mimic_sic_8h.csv.gz'
+        sics8h_eicu_path = '/Users/gwonjeong-eul/Desktop/ecp-scl-macbook/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/eicu_sic_8h.csv.gz'
 
+    
     sics8h_mimic = pd.read_csv(sics8h_mimic_path, compression = 'gzip', index_col=0)
     sics8h_eicu = pd.read_csv(sics8h_eicu_path, compression = 'gzip', index_col=0)
     
-    sics8h_mimic_train = pd.merge(mimic_train.drop(['Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), sics8h_mimic, how = 'inner', on = ['subject_id', 'stay_id', 'Time_since_ICU_admission'])
-    sics8h_mimic_valid = pd.merge(mimic_valid.drop(['Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), sics8h_mimic, how = 'inner', on = ['subject_id', 'stay_id', 'Time_since_ICU_admission'])
-    sics8h_eicu_test = pd.merge(eicu_test.drop(['Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), sics8h_eicu, how = 'inner', on = ['uniquepid', 'patientunitstayid', 'Time_since_ICU_admission'])
+    sics8h_mimic_train = pd.merge(mimic_train.drop(['after_shock_annotation', 'Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), sics8h_mimic, how = 'inner', on = ['subject_id', 'stay_id', 'Time_since_ICU_admission'])
+    sics8h_mimic_valid = pd.merge(mimic_valid.drop(['after_shock_annotation', 'Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), sics8h_mimic, how = 'inner', on = ['subject_id', 'stay_id', 'Time_since_ICU_admission'])
+    sics8h_eicu_test = pd.merge(eicu_test.drop(['after_shock_annotation', 'Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), sics8h_eicu, how = 'inner', on = ['uniquepid', 'patientunitstayid', 'Time_since_ICU_admission'])
     
-    retain_stay_id=[]
-    drop_stayid = []
-    for stay_id, group in sics8h_mimic_train.groupby('stay_id'):
-        if any(group['Annotation_SIC'] == 'SIC'):
-            if all(group['Annotation_SIC'] == 'SIC'):
-                drop_stayid.append(stay_id)
-            else:
-                retain_stay_id.append(stay_id)
-            
-    for stay_id, group in sics8h_mimic_valid.groupby('stay_id'):
-        if any(group['Annotation_SIC'] == 'SIC'):
-            if all(group['Annotation_SIC'] == 'SIC'):
-                drop_stayid.append(stay_id)
-            else:
-                retain_stay_id.append(stay_id)
-            
-    for stay_id, group in sics8h_eicu_test.groupby('patientunitstayid'):
-        if any(group['Annotation_SIC'] == 'SIC'):
-            if all(group['Annotation_SIC'] == 'SIC'):
-                drop_stayid.append(stay_id)
-            else:
-                retain_stay_id.append(stay_id)
-            
-    sics8h_mimic_train = sics8h_mimic_train[(sics8h_mimic_train['stay_id'].isin(retain_stay_id))].reset_index(drop=True)
-    sics8h_mimic_valid = sics8h_mimic_valid[(sics8h_mimic_valid['stay_id'].isin(retain_stay_id))].reset_index(drop=True)
-    sics8h_eicu_test = sics8h_eicu_test[(sics8h_eicu_test['patientunitstayid'].isin(retain_stay_id))].reset_index(drop=True)
-    
+    sics8h_mimic_train.dropna(inplace=True)
+    sics8h_mimic_valid.dropna(inplace=True)
+    sics8h_eicu_test.dropna(inplace=True)
     
     sics8h_mimic_train = get_SIC(sics8h_mimic_train, event='SIC', mode = 'mimic')
     sics8h_mimic_valid = get_SIC(sics8h_mimic_valid, event='SIC', mode = 'mimic')
     sics8h_eicu_test = get_SIC(sics8h_eicu_test, event='SIC', mode = 'eicu')
     
+    drop_stayid = []
+    for stay_id, group in sics8h_mimic_train.groupby('stay_id'):
+        if any(group['Annotation_SIC'] == 'SIC'):
+            if all(group['Annotation_SIC'] == 'SIC'):
+                drop_stayid.append(stay_id)
+            
+    for stay_id, group in sics8h_mimic_valid.groupby('stay_id'):
+        if any(group['Annotation_SIC'] == 'SIC'):
+            if all(group['Annotation_SIC'] == 'SIC'):
+                drop_stayid.append(stay_id)
+            
+    for stay_id, group in sics8h_eicu_test.groupby('patientunitstayid'):
+        if any(group['Annotation_SIC'] == 'SIC'):
+            if all(group['Annotation_SIC'] == 'SIC'):
+                drop_stayid.append(stay_id)
     
-    sics8h_mimic_train = sics8h_mimic_train[(sics8h_mimic_train['stay_id'].isin(retain_stay_id))].reset_index(drop=True)
-    sics8h_mimic_valid = sics8h_mimic_valid[(sics8h_mimic_valid['stay_id'].isin(retain_stay_id))].reset_index(drop=True)
-    sics8h_eicu_test = sics8h_eicu_test[(sics8h_eicu_test['patientunitstayid'].isin(retain_stay_id))].reset_index(drop=True)
+    sics8h_mimic_train = sics8h_mimic_train[~(sics8h_mimic_train['stay_id'].isin(drop_stayid))].reset_index(drop=True)
+    sics8h_mimic_valid = sics8h_mimic_valid[~(sics8h_mimic_valid['stay_id'].isin(drop_stayid))].reset_index(drop=True)
+    sics8h_eicu_test = sics8h_eicu_test[~(sics8h_eicu_test['patientunitstayid'].isin(drop_stayid))].reset_index(drop=True)
     
     return sics8h_mimic_train, sics8h_mimic_valid, sics8h_eicu_test
 

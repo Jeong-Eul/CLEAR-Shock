@@ -5,35 +5,51 @@ import sys
 from tqdm import tqdm
 pd.set_option('mode.chained_assignment', None)
 
-mimic_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis(new_version0229).csv.gz'
-eicu_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/eicu_analysis(new_version0229).csv.gz'
 
-mimic = pd.read_csv(mimic_path, compression = 'gzip')
-mimic = mimic[mimic['INDEX']=='CASE3_CASE4_DF'].reset_index(drop=True)
-eicu = pd.read_csv(eicu_path, compression = 'gzip')
-eicu = eicu[eicu['INDEX']=='CASE3_CASE4_DF'].reset_index(drop=True)
+def main(os):
 
+    if os == 'window':
+        mimic_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis(new_version0313).csv.gz'
+        eicu_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/eicu_analysis(new_version0313).csv.gz'
 
-def main():
+        save_path ='/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/'
+
+        mimic_mort_path = '/Users/DAHS/Desktop/MIMICIV2.2_PREPROC/data/cohort/cohort_icu_mortality_0_.csv.gz'
+        eicu_mort_path = '/Users/DAHS/Desktop/early_prediction_of_circ_scl/eicu-crd/preprocessing_data/cohort/cohort_.csv.gz'
+
+    else:
+        mimic_path = '/Users/gwonjeong-eul/Desktop/ecp-scl-macbook/ECP_SCL/Case Labeling/mimic_analysis(new_version0313).csv.gz'
+        eicu_path = '/Users/gwonjeong-eul/Desktop/ecp-scl-macbook/ECP_SCL/Case Labeling/eicu_analysis(new_version0313).csv.gz'
+
+        save_path = '/Users/gwonjeong-eul/Desktop/ecp-scl-macbook/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/'
+
+        mimic_mort_path = '/Users/gwonjeong-eul/Desktop/ecp-scl-macbook/eicu_patients/cohort_icu_mortality_0_.csv.gz'
+        eicu_mort_path = '/Users/gwonjeong-eul/Desktop/ecp-scl-macbook/eicu_patients/cohort_.csv.gz'
+
+    mimic = pd.read_csv(mimic_path, compression = 'gzip')
+    mimic = mimic[mimic['INDEX']=='CASE3_CASE4_DF'].reset_index(drop=True)
+    eicu = pd.read_csv(eicu_path, compression = 'gzip')
+    eicu = eicu[eicu['INDEX']=='CASE3_CASE4_DF'].reset_index(drop=True)
+
     print('Creating Mortality next 24h Task...')
-    mortality_24h_prediction(mimic, eicu)
+    mortality_24h_prediction(mimic, eicu, mimic_mort_path, eicu_mort_path, save_path)
     print('Finish!')
     print('--------------------------------------')
     print('Creating Remain Length of stay Task...')
-    remain_ratio_prediction(mimic, eicu)
+    remain_ratio_prediction(mimic, eicu, save_path)
     print('Finish!')
     print('--------------------------------------')
     print('Creating ARDS next 4, 8h Task...')
-    ARDS_prediction(mimic, eicu)
+    ARDS_prediction(mimic, eicu, save_path)
     print('Finish!')
     print('--------------------------------------')
     print('Creating SIC next 4, 8h Task...')
-    SIC_prediction(mimic, eicu)
+    SIC_prediction(mimic, eicu, save_path)
     print('Finish!')
     print('--------------------------------------')
     
     
-def SIC_prediction(mimic, eicu):
+def SIC_prediction(mimic, eicu, save_path):
     m_sic_df = mimic[['subject_id', 'stay_id', 'Time_since_ICU_admission', 'INR', 'Platelets', 'suspected_infection', 'SoFa_score']].copy()
     e_sic_df = eicu[['uniquepid', 'patientunitstayid', 'Time_since_ICU_admission', 'INR', 'Platelets', 'suspected_infection', 'SoFa_score']].copy()
 
@@ -85,21 +101,18 @@ def SIC_prediction(mimic, eicu):
     patient_id | stay id | Time_since_ICU_admission | Annotation_SIC | label
     """
 
-    m_sic_4h_df[['subject_id', 'stay_id', 'Time_since_ICU_admission', 'Annotation_SIC', 'SIC_next_4h']].to_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/mimic_sic_4h.csv.gz')
-    e_sic_4h_df[['uniquepid', 'patientunitstayid', 'Time_since_ICU_admission', 'Annotation_SIC', 'SIC_next_4h']].to_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/eicu_sic_4h.csv.gz')
+    m_sic_4h_df[['subject_id', 'stay_id', 'Time_since_ICU_admission', 'Annotation_SIC', 'SIC_next_4h']].to_csv(save_path + 'mimic_sic_4h.csv.gz')
+    e_sic_4h_df[['uniquepid', 'patientunitstayid', 'Time_since_ICU_admission', 'Annotation_SIC', 'SIC_next_4h']].to_csv(save_path + 'eicu_sic_4h.csv.gz')
 
-    m_sic_8h_df[['subject_id', 'stay_id', 'Time_since_ICU_admission', 'Annotation_SIC', 'SIC_next_8h']].to_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/mimic_sic_8h.csv.gz')
-    e_sic_8h_df[['uniquepid', 'patientunitstayid', 'Time_since_ICU_admission', 'Annotation_SIC', 'SIC_next_8h']].to_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/eicu_sic_8h.csv.gz')
+    m_sic_8h_df[['subject_id', 'stay_id', 'Time_since_ICU_admission', 'Annotation_SIC', 'SIC_next_8h']].to_csv(save_path + 'mimic_sic_8h.csv.gz')
+    e_sic_8h_df[['uniquepid', 'patientunitstayid', 'Time_since_ICU_admission', 'Annotation_SIC', 'SIC_next_8h']].to_csv(save_path + 'eicu_sic_8h.csv.gz')
     
 
 
-def ARDS_prediction(mimic, eicu):
-    m_ards_df = mimic[['subject_id', 'stay_id', 'Time_since_ICU_admission', 'PEEP', 'PaO2', 'FIO2 (%)']].copy()
-    e_ards_df = eicu[['uniquepid', 'patientunitstayid', 'Time_since_ICU_admission', 'PEEP', 'PaO2', 'FIO2 (%)']].copy()
+def ARDS_prediction(mimic, eicu, save_path):
+    m_ards_df = mimic[['subject_id', 'stay_id', 'Time_since_ICU_admission', 'PEEP', 'PaO2', 'FIO2 (%)', 'PaO2/FiO2']].copy()
+    e_ards_df = eicu[['uniquepid', 'patientunitstayid', 'Time_since_ICU_admission', 'PEEP', 'PaO2', 'FIO2 (%)', 'PaO2/FiO2']].copy()
     
-    m_ards_df['PaO2/FiO2'] = m_ards_df['PaO2'] / (m_ards_df['FIO2 (%)']/100)
-    e_ards_df['PaO2/FiO2'] = e_ards_df['PaO2'] / (e_ards_df['FIO2 (%)']/100)
-
     m_ards_df = Annotation_ARDS(m_ards_df, 'mimic')
     e_ards_df = Annotation_ARDS(e_ards_df, 'eicu')
     
@@ -113,13 +126,13 @@ def ARDS_prediction(mimic, eicu):
     patient_id | stay id | Time_since_ICU_admission | 'PEEP' | 'PaO2' | 'FIO2 (%)' | PaO2/FiO2 | Annotation_ARDS | label
     """
 
-    m_ards_4h_df.to_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/mimic_ards_4h.csv.gz')
-    e_ards_4h_df.to_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/eicu_ards_4h.csv.gz')
+    m_ards_4h_df.to_csv(save_path + 'mimic_ards_4h.csv.gz')
+    e_ards_4h_df.to_csv(save_path + 'eicu_ards_4h.csv.gz')
 
-    m_ards_8h_df.to_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/mimic_ards_8h.csv.gz')
-    e_ards_8h_df.to_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/eicu_ards_8h.csv.gz')
+    m_ards_8h_df.to_csv(save_path + 'mimic_ards_8h.csv.gz')
+    e_ards_8h_df.to_csv(save_path + 'eicu_ards_8h.csv.gz')
 
-def remain_ratio_prediction(mimic, eicu):
+def remain_ratio_prediction(mimic, eicu, save_path):
     m_los_df = mimic[['subject_id', 'stay_id', 'Time_since_ICU_admission']].copy()
     e_los_df = eicu[['uniquepid', 'patientunitstayid', 'Time_since_ICU_admission']].copy()
     
@@ -155,11 +168,11 @@ def remain_ratio_prediction(mimic, eicu):
     patient_id | stay id | Time_since_ICU_admission | remain_los(label)
     """
 
-    m_los_df.to_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/mimic_remain_los.csv.gz')
-    e_los_df.to_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/eicu_remain_los.csv.gz')
+    m_los_df.to_csv(save_path + 'mimic_remain_los.csv.gz')
+    e_los_df.to_csv(save_path + 'eicu_remain_los.csv.gz')
         
 
-def mortality_24h_prediction(mimic, eicu):
+def mortality_24h_prediction(mimic, eicu, mimic_mort_path, eicu_mort_path, save_path):
 
     ### mortality early prediction (24h)
     """
@@ -168,10 +181,6 @@ def mortality_24h_prediction(mimic, eicu):
     건강이 악화되고 있는지 미리 예측하는 Task
 
     """
-
-    mimic_mort_path = '/Users/DAHS/Desktop/MIMICIV2.2_PREPROC/data/cohort/cohort_icu_mortality_0_.csv.gz'
-    eicu_mort_path = '/Users/DAHS/Desktop/early_prediction_of_circ_scl/eicu-crd/preprocessing_data/cohort/cohort_.csv.gz'
-
 
     mimic_mort = pd.read_csv(mimic_mort_path, compression = 'gzip')
     eicu_mort = pd.read_csv(eicu_mort_path, compression = 'gzip')
@@ -219,8 +228,8 @@ def mortality_24h_prediction(mimic, eicu):
     patient_id | stay id | Time_since_ICU_admission | death(label)
     """
 
-    m_mort_df.to_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/mimic_mort_24h.csv.gz')
-    e_mort_df.to_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/sub task prediction/sub_task_dataset/eicu_mort_24h.csv.gz')
+    m_mort_df.to_csv(save_path + 'mimic_mort_24h.csv.gz')
+    e_mort_df.to_csv(save_path + 'eicu_mort_24h.csv.gz')
     
 
 def Annotation_ARDS(df, mode):

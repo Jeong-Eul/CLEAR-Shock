@@ -57,13 +57,23 @@ def classifier(algorithm, x, y, x_valid, valid_output, mode = 'emb'):
             return lgbm_wrapper, valid_output
         
         elif algorithm == 'xgb':
+            # xgbm = XGBClassifier(random_state=42)
+            # xgbm.fit(x, y-1)
+            
+            # valid_preds = xgbm.predict(x_valid)
+            # valid_output['prediction_label'] = valid_preds
+            # valid_output['prediction_prob'] = xgbm.predict_proba(x_valid)[:, 1]
+            # valid_output['prediction_label'] = valid_output['prediction_label']+1
+            
+            # return xgbm, valid_output
+        
             xgbm = XGBClassifier(random_state=42)
-            xgbm.fit(x, y-1)
+            xgbm.fit(x, y)
             
             valid_preds = xgbm.predict(x_valid)
             valid_output['prediction_label'] = valid_preds
             valid_output['prediction_prob'] = xgbm.predict_proba(x_valid)[:, 1]
-            valid_output['prediction_label'] = valid_output['prediction_label']+1
+            valid_output['prediction_label'] = valid_output['prediction_label']
             
             return xgbm, valid_output
         
@@ -192,13 +202,23 @@ def classifier(algorithm, x, y, x_valid, valid_output, mode = 'emb'):
             return lgbm_wrapper, valid_output
         
         elif algorithm == 'xgb':
+            # xgbm = XGBClassifier(random_state=42)
+            # xgbm.fit(x, y-1)
+            
+            # valid_preds = xgbm.predict(x_valid)
+            # valid_output['prediction_label'] = valid_preds
+            # valid_output['prediction_prob'] = xgbm.predict_proba(x_valid)[:, 1]
+            # valid_output['prediction_label'] = valid_output['prediction_label']+1
+            
+            # return xgbm, valid_output
+
             xgbm = XGBClassifier(random_state=42)
-            xgbm.fit(x, y-1)
+            xgbm.fit(x, y)
             
             valid_preds = xgbm.predict(x_valid)
             valid_output['prediction_label'] = valid_preds
             valid_output['prediction_prob'] = xgbm.predict_proba(x_valid)[:, 1]
-            valid_output['prediction_label'] = valid_output['prediction_label']+1
+            valid_output['prediction_label'] = valid_output['prediction_label']
             
             return xgbm, valid_output
         
