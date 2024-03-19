@@ -128,8 +128,6 @@ def integrating(data_path, emb_path_trn, emb_path_vld, emb_path_event, mode):
         
         vld_emb_integ = pd.concat([valid, vld_embedding], axis = 1)
         
-        # trn_emb_integ = trn_emb_integ[~((trn_emb_integ['INDEX']=='CASE3_CASE4_DF')&(trn_emb_integ['Annotation']=='no_circ'))]
-        # vld_emb_integ = vld_emb_integ[~((vld_emb_integ['INDEX']=='CASE3_CASE4_DF')&(vld_emb_integ['Annotation']=='no_circ'))]
         return trn_emb_integ, vld_emb_integ, eventset
 
 
@@ -182,7 +180,7 @@ def integrating_for_subtask(data_path, emb_path_trn, emb_path_vld, emb_path_even
         
         eventset = data[(data['Case']=='event')].reset_index(drop=True)
         dataset = dataset[~(dataset['Case']=='event')]
-        
+        dataset = dataset[~((dataset['INDEX']=='CASE3_CASE4_DF')&(dataset['Annotation']=='no_circ'))]
         dataset['Case'] = pd.to_numeric(dataset['Case'], errors='coerce')
         
         save_load = np.load(emb_path_trn)
@@ -193,9 +191,7 @@ def integrating_for_subtask(data_path, emb_path_trn, emb_path_vld, emb_path_even
         
         emb_integ = pd.concat([dataset.reset_index(drop=True), embedding], axis = 1)
         
-        hosp_id, emb_integ = get_hospital_eicu.hospital(emb_integ)
-        
-        return emb_integ, eventset, hosp_id
+        return emb_integ, eventset
         
     else:    
         dataset = data[~(data['gender']==2)].reset_index(drop=True)
@@ -204,7 +200,7 @@ def integrating_for_subtask(data_path, emb_path_trn, emb_path_vld, emb_path_even
         dataset.fillna(0, inplace=True) 
         
         dataset = dataset[~(dataset['Case']=='event')]
-        
+        dataset = dataset[~((dataset['INDEX']=='CASE3_CASE4_DF')&(dataset['Annotation']=='no_circ'))]
         eventset = data[(data['Case']=='event')].reset_index(drop=True)
         
         # event_save_load = np.load(emb_path_event)
@@ -234,6 +230,7 @@ def integrating_for_subtask(data_path, emb_path_trn, emb_path_vld, emb_path_even
         
         vld_emb_integ = pd.concat([valid, vld_embedding], axis = 1)
         
-        # trn_emb_integ = trn_emb_integ[~((trn_emb_integ['INDEX']=='CASE3_CASE4_DF')&(trn_emb_integ['Annotation']=='no_circ'))]
-        # vld_emb_integ = vld_emb_integ[~((vld_emb_integ['INDEX']=='CASE3_CASE4_DF')&(vld_emb_integ['Annotation']=='no_circ'))]
+        trn_emb_integ = trn_emb_integ[(trn_emb_integ['INDEX']=='CASE3_CASE4_DF')]
+        vld_emb_integ = vld_emb_integ[(vld_emb_integ['INDEX']=='CASE3_CASE4_DF')]
+
         return trn_emb_integ, vld_emb_integ, eventset

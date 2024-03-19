@@ -49,7 +49,7 @@ def create_analysis(eventset,X_train, y_train, X_valid, valid_output, mode):
     
     return trained_models, result
 
-def create_subtask(X_train, y_train, X_valid, valid_output, event, mode, type, event_task):
+def create_subtask(X_train, y_train, X_Test, Test_output, event, mode, type, event_task):
     
     model_names = ['xgb', 'lgbm', 'catboost', 'rf', 'dt', 'svm-ovr', 'lr', 'naivebayes', 'knn']
     trained_models = []
@@ -57,18 +57,18 @@ def create_subtask(X_train, y_train, X_valid, valid_output, event, mode, type, e
     
     for model_name in model_names:
 
-        model, valid_output = classifier_ML.classifier(model_name, X_train, y_train, X_valid, valid_output, mode = mode)
+        model, test_output = classifier_ML.classifier(model_name, X_train, y_train, X_Test, Test_output, mode = 'mimic')
         
         if type == 'binary':
-            result_sub = ST_binary_evaluation(event, valid_output, model_name, mode, event_task)
+            result_sub = ST_binary_evaluation(event, test_output, model_name, mode, event_task)
             result = pd.concat([result, result_sub], axis = 0).reset_index(drop=True)
             trained_models.append(model)
             
         else:
-            result_sub = ST_multi_evaluation(event, valid_output, model_name)
+            result_sub = ST_multi_evaluation(event, test_output, model_name)
             result = pd.concat([result, result_sub], axis = 0).reset_index(drop=True)
             trained_models.append(model)
-    print('|MIMIC-Validation|====================================================')
+    print('|MIMIC-Test|====================================================')
     display(result)
     print('----------------------------------------------------------------------')
     

@@ -17,10 +17,6 @@ def mortality_prediction_DATA(mimic_train, mimic_valid, eicu_test, os_env):
     mort_mimic_train = pd.merge(mimic_train.drop(['after_shock_annotation', 'Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), mort_mimic, how = 'left', on = ['subject_id', 'stay_id', 'Time_since_ICU_admission'])
     mort_mimic_valid = pd.merge(mimic_valid.drop(['after_shock_annotation', 'Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), mort_mimic, how = 'left', on = ['subject_id', 'stay_id', 'Time_since_ICU_admission'])
     mort_eicu_test = pd.merge(eicu_test.drop(['after_shock_annotation', 'Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1), mort_eicu, how = 'left', on = ['uniquepid', 'patientunitstayid', 'Time_since_ICU_admission'])
-    
-    mort_mimic_train.dropna(inplace=True)
-    mort_mimic_valid.dropna(inplace=True)
-    mort_eicu_test.dropna(inplace=True)
 
     remain_stayid = []
     for stay_id, group in mort_mimic_train.groupby('stay_id'):
@@ -39,7 +35,7 @@ def mortality_prediction_DATA(mimic_train, mimic_valid, eicu_test, os_env):
     mort_mimic_valid = mort_mimic_valid[(mort_mimic_valid['stay_id'].isin(remain_stayid))].reset_index(drop=True)
     mort_eicu_test = mort_eicu_test[(mort_eicu_test['patientunitstayid'].isin(remain_stayid))].reset_index(drop=True)
     
-    return mort_mimic_train.fillna(0), mort_mimic_valid.fillna(0), mort_eicu_test.fillna(0)
+    return mort_mimic_train, mort_mimic_valid, mort_eicu_test
 
 def LOS_prediction_DATA(mimic_train, mimic_valid, eicu_test, os_env):
 
