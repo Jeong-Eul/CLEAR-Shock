@@ -1,6 +1,7 @@
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import roc_auc_score
 from sklearn.metrics import precision_recall_curve, auc
+from sklearn.metrics import roc_curve
 from sklearn.metrics import average_precision_score
 
 from sklearn.metrics import accuracy_score
@@ -9,6 +10,7 @@ from sklearn.metrics import recall_score
 from sklearn.metrics import f1_score
 from sklearn.metrics import classification_report
 
+import scipy.stats
 import pandas as pd
 import numpy as np
 import sys
@@ -49,30 +51,141 @@ def create_analysis(eventset,X_train, y_train, X_valid, valid_output, mode):
     
     return trained_models, result
 
-def create_subtask(X_train, y_train, X_Test, Test_output, event, mode, type, event_task):
+def create_subtask(X_train, y_train):
     
-    model_names = ['xgb', 'lgbm', 'catboost', 'rf', 'dt', 'svm-ovr', 'lr', 'naivebayes', 'knn']
-    trained_models = []
-    result = pd.DataFrame()
+    model_names = ['xgb', 'lgbm', 'catboost', 'rf', 'lr', 'naivebayes', 'knn']
+    trained_models_dict = {}
     
     for model_name in model_names:
-
-        model, test_output = classifier_ML.classifier(model_name, X_train, y_train, X_Test, Test_output, mode = 'mimic')
-        
-        if type == 'binary':
-            result_sub = ST_binary_evaluation(event, test_output, model_name, mode, event_task)
-            result = pd.concat([result, result_sub], axis = 0).reset_index(drop=True)
-            trained_models.append(model)
-            
-        else:
-            result_sub = ST_multi_evaluation(event, test_output, model_name)
-            result = pd.concat([result, result_sub], axis = 0).reset_index(drop=True)
-            trained_models.append(model)
-    print('|MIMIC-Test|====================================================')
-    display(result)
-    print('----------------------------------------------------------------------')
+        model = classifier_ML.subtask_CLF(model_name, X_train, y_train)
+        trained_models_dict[model_name] = model 
+    print('==Start training==')
+    print('..')
+    print('==Complete Training==')
     
-    return trained_models, result
+    return trained_models_dict
+
+def unit_sic_evaluation(unittype, model_name_dict, event):
+    print('[Starting eICU-Test]')
+    
+    result = pd.DataFrame()
+    drop_col = ['hospitalid', 'hospitaldischargeyear']
+        
+    print('eICU-UnitType...')
+    
+    for type in unittype.keys():
+        eval_set = unittype[type]
+        X_test, _, test_output = split.split_X_Y_SIC8h(eval_set, mode = 'eicu')
+        X_test.drop(drop_col, axis = 1, inplace =True)
+        for model_name, model in model_name_dict.items():
+            test_preds = model.predict(X_test)
+            
+            test_output['prediction_label'] = test_preds
+            test_output['prediction_prob'] = model.predict_proba(X_test)[:, 1]
+            result_sub = ST_binary_evaluation(event, test_output, model_name, mode = 'eicu', event_task = 'SIC 8h')
+            result_sub['Subpopulation'] = 'UnitType'
+            result_sub['eICU Type'] = type
+            result_sub['Model'] = model_name
+            result = pd.concat([result, result_sub], axis = 0).reset_index(drop=True)
+    
+    display(result.set_index(['Subpopulation', 'eICU Type']))
+    
+    return result.set_index(['Subpopulation', 'eICU Type'])
+
+def unit_ards_evaluation(unittype, model_name_dict, event):
+    print('[Starting eICU-Test]')
+    
+    result = pd.DataFrame()
+    drop_col = ['hospitalid', 'hospitaldischargeyear']
+        
+    print('eICU-UnitType...')
+    
+    for type in unittype.keys():
+        eval_set = unittype[type]
+        X_test, _, test_output = split.split_X_Y_ARDS8h(eval_set, mode = 'eicu')
+        X_test.drop(drop_col, axis = 1, inplace =True)
+        for model_name, model in model_name_dict.items():
+            test_preds = model.predict(X_test)
+            
+            test_output['prediction_label'] = test_preds
+            test_output['prediction_prob'] = model.predict_proba(X_test)[:, 1]
+            result_sub = ST_binary_evaluation(event, test_output, model_name, mode = 'eicu', event_task = 'ARDS 8h')
+            result_sub['Subpopulation'] = 'UnitType'
+            result_sub['eICU Type'] = type
+            result_sub['Model'] = model_name
+            result = pd.concat([result, result_sub], axis = 0).reset_index(drop=True)
+    
+    display(result.set_index(['Subpopulation', 'eICU Type']))
+    
+    return result.set_index(['Subpopulation', 'eICU Type'])
+
+
+def unit_los_evaluation(unittype, model_name_dict):
+    print('[Starting eICU-Test]')
+    
+    result = pd.DataFrame()
+    drop_col = ['hospitalid', 'hospitaldischargeyear']
+        
+    print('eICU-UnitType...')
+    
+    for type in unittype.keys():
+       
+        eval_set = unittype[type]
+        X_test, _, test_output = split.split_X_Y_LOS(eval_set, mode = 'eicu')
+        X_test.drop(drop_col, axis = 1, inplace =True)
+        for model_name, model in model_name_dict.items():
+            test_preds = model.predict(X_test)
+            
+            test_output['prediction_label'] = test_preds
+            test_prob = model.predict_proba(X_test)
+            
+            result_sub = ST_multi_evaluation(_, test_output, test_prob, model_name)
+            result_sub['Subpopulation'] = 'UnitType'
+            result_sub['eICU Type'] = type
+            result_sub['Model'] = model_name
+            result = pd.concat([result, result_sub], axis = 0).reset_index(drop=True)
+       
+    
+    display(result.set_index(['Subpopulation', 'eICU Type']))
+    
+    return result.set_index(['Subpopulation', 'eICU Type'])
+
+def unit_mort_evaluation(unittype, model_name_dict):
+    print('[Starting eICU-Test]')
+    
+    result = pd.DataFrame()
+    drop_col = ['hospitalid', 'hospitaldischargeyear']
+        
+    print('eICU-UnitType...')
+    
+    for type in unittype.keys():
+       
+        eval_set = unittype[type]
+        X_test, _, test_output = split.split_X_Y_MORT(eval_set[eval_set['death']!='event'], mode = 'eicu')
+        X_test.drop(drop_col, axis = 1, inplace =True)
+        for model_name, model in model_name_dict.items():
+            test_preds = model.predict(X_test)
+            
+            test_output['prediction_label'] = test_preds
+            test_prob = model.predict_proba(X_test)
+            result_sub = ST_binary_evaluation(_, test_output, test_prob, model_name, mode = 'eicu', event_task = False)
+            result_sub['Subpopulation'] = 'UnitType'
+            result_sub['eICU Type'] = type
+            result_sub['Model'] = model_name
+            result = pd.concat([result, result_sub], axis = 0).reset_index(drop=True)
+       
+    
+    display(result.set_index(['Subpopulation', 'eICU Type']))
+    
+    return result.set_index(['Subpopulation', 'eICU Type'])
+
+def mean_confidence_interval(data, confidence=0.95):
+    if len(data) < 2:  # 데이터 포인트가 1개 이하인 경우 처리
+        return np.nan, np.nan, np.nan  # 평균, CI Lower, CI Upper
+    mean = np.mean(data)
+    sem = scipy.stats.sem(data)  # 표준오차 계산
+    margin_of_error = sem * scipy.stats.t.ppf((1 + confidence) / 2., len(data)-1)
+    return mean, mean - margin_of_error, mean + margin_of_error
 
 def create_threshold(eventset,X_train, y_train, X_valid, valid_output, mode):
     
@@ -494,21 +607,17 @@ def threshold_for_capture(inference_output, event, model_name, mode):
     
     return results
 
-def ST_binary_evaluation(event, inference_output, model_name, mode, event_task):
+def ST_binary_evaluation(event, inference_output, test_prob, model_name, mode, event_task):
     
     if event_task == False:
     
-        accuracy = accuracy_score(inference_output.iloc[:, -3], inference_output.prediction_label.astype(int))
-        auprc = average_precision_score(inference_output.iloc[:, -3], inference_output.prediction_prob)
-        f1 = f1_score(inference_output.iloc[:, -3], inference_output.prediction_label.astype(int))
-        recall = recall_score(inference_output.iloc[:, -3], inference_output.prediction_label.astype(int))
-        precision = precision_score(inference_output.iloc[:, -3], inference_output.prediction_label.astype(int))
+        auroc = roc_auc_score(inference_output['death'].values, test_prob[:,1])
+        precision, recall, _ = precision_recall_curve(inference_output['death'].values, test_prob[:,1])
+        auprc = auc(recall, precision)
         
-        data = {'Model':[model_name], 'Accuracy': [accuracy],
-                'AUPRC': [auprc], 
-                'F1 Score': [f1],
-                'Recall': [recall],
-                'Precision': [precision]}
+        data = {'Model':[model_name],
+                'AUROC': [auroc],
+                'AUPRC': [auprc]}
 
         return pd.DataFrame(data).fillna(0)
     
@@ -531,24 +640,13 @@ def ST_binary_evaluation(event, inference_output, model_name, mode, event_task):
         return pd.DataFrame(data).fillna(0)
         
     elif event_task == 'ARDS 8h':
-        accuracy = accuracy_score(inference_output.iloc[:, -3], inference_output.prediction_label.astype(int))
         result = classifier_ML.event_metric_ARDS8h(event, inference_output, mode, model_name)
-        
-        general_recall = recall_score(inference_output.iloc[:, -3], inference_output.prediction_label.astype(int))
-        recall = result['recall'].values[0]
-        precision = precision_score(inference_output.iloc[:, -3], inference_output.prediction_label.astype(int))
-        # auprc = classifier_ML.ARDS8h_AUPRC(event, inference_output, mode, model_name)
-        
-        fb_score =  (1+(1.5)**2)*(general_recall*precision)/((1.5)**2 * precision + general_recall)
-        precisions, recalls, thresholds = precision_recall_curve(inference_output.iloc[:, -3], inference_output.prediction_prob)
-        auprc = auc(recalls, precisions)
+        fb_score = result['IoC(1.5)'].values[0]
+        auprc = classifier_ML.ARDS8h_AUPRC(event, inference_output, mode, model_name)
         
         data = {'Model':[model_name],
                 'AUPRC': [auprc],
-                'ARDS score':[fb_score],
-                'Recall': [recall],
-                'Precision': [precision],
-                'Grecall': [general_recall]}
+                'ARDS score':[fb_score]}
 
         return pd.DataFrame(data).fillna(0)
     
@@ -572,44 +670,44 @@ def ST_binary_evaluation(event, inference_output, model_name, mode, event_task):
         return pd.DataFrame(data).fillna(0)
         
     elif event_task == 'SIC 8h':
-        accuracy = accuracy_score(inference_output.iloc[:, -3], inference_output.prediction_label.astype(int))
-        general_recall = recall_score(inference_output.iloc[:, -3], inference_output.prediction_label.astype(int))
+        # accuracy = accuracy_score(inference_output.iloc[:, -3], inference_output.prediction_label.astype(int))
+        # general_recall = recall_score(inference_output.iloc[:, -3], inference_output.prediction_label.astype(int))
         result = classifier_ML.event_metric_SIC8h(event, inference_output, mode, model_name)
-        auprc = average_precision_score(inference_output.iloc[:, -3], inference_output.prediction_prob)
-        recall = result['recall'].values[0]
-        precision = precision_score(inference_output.iloc[:, -3], inference_output.prediction_label.astype(int))
-        # auprc = classifier_ML.SIC8h_AUPRC(event, inference_output, mode, model_name)
-        precisions, recalls, thresholds = precision_recall_curve(inference_output.iloc[:, -3], inference_output.prediction_prob)
-        auprc = auc(recalls, precisions)
+        # auprc = average_precision_score(inference_output.iloc[:, -3], inference_output.prediction_prob)
+        # recall = result['recall'].values[0]
+        fb_score = result['IoC(1.5)'].values[0]
+        # precision = precision_score(inference_output.iloc[:, -3], inference_output.prediction_label.astype(int))
+        auprc = classifier_ML.SIC8h_AUPRC(event, inference_output, mode, model_name)
+        # precisions, recalls, thresholds = precision_recall_curve(inference_output.iloc[:, -3], inference_output.prediction_prob)
+        # auprc = auc(recalls, precisions)
         
-        fb_score =  (1+(1.5)**2)*(general_recall*precision)/((1.5)**2 * precision + general_recall)
+        # fb_score =  (1+(1.5)**2)*(recall*precision)/((1.5)**2 * precision + recall)
         
         data = {'Model':[model_name],
                 'AUPRC': [auprc],
-                'SIC score':[fb_score],
-                'Recall': [recall],
-                'Precision': [precision],
-                'Grecall': [general_recall],}
+                'SIC score':[fb_score]}
 
         return pd.DataFrame(data).fillna(0)
         
 
-def ST_multi_evaluation(event, inference_output, model_name):
+def ST_multi_evaluation(event, inference_output, test_prob, model_name):
+    fpr = {}
+    tpr = {}
+    thresh ={}
+    precision = {}
+    recall = {}
+    n_class = inference_output['remain_los'].nunique()
+    for i in range(n_class):    
+        fpr[i], tpr[i], thresh[i] = roc_curve(inference_output['remain_los'].values, test_prob[:,i], pos_label=i)
+        precision[i], recall[i], thresh[i] = precision_recall_curve(inference_output['remain_los'].values, test_prob[:,i], pos_label=i)
     
-    report = classification_report(inference_output.iloc[:, -3], inference_output.prediction_label.astype(int), output_dict=True)
- 
-    f1_score = np.round(report['macro avg']['f1-score'], 4)
-    macro_precision = np.round(report['macro avg']['precision'], 4)
-    macro_recall = np.round(report['macro avg']['recall'], 4)
-    accuracy = np.round(report['accuracy'], 4)
-    prc_auc_dict = auprc_score_multiclass(inference_output.iloc[:, -3], inference_output.prediction_prob)
-    average_prc = sum(prc_auc_dict.values()) / len(prc_auc_dict)
-    
-    data = {'Model':[model_name], 'Accuracy': [accuracy],
-            'Macro AUPRC':[average_prc],
-            'F1 Score': [f1_score],
-            'Macro averaged precision': [macro_precision],
-            'Macro averaged Recall': [macro_recall]}
+    data = {'Model':[model_name], 
+            'AUROC < 5days': [auc(fpr[0], tpr[0])],
+            'AUROC < 10days': [auc(fpr[1], tpr[1])],
+            'AUROC >= 15days': [auc(fpr[2], tpr[2])],
+            'AUPRC < 5days': [auc(recall[0], precision[0])],
+            'AUPRC < 10days': [auc(recall[1], precision[1])],
+            'AUPRC >= 15days': [auc(recall[2], precision[2])],}
 
     return pd.DataFrame(data).fillna(0)
     

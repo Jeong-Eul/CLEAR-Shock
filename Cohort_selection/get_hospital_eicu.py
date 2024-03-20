@@ -36,29 +36,29 @@ def eicu_subgroup(eicu):
     interest = pd.merge(eicu, interest, how = 'left', on = ['patientunitstayid']).reset_index(drop=True)
     
     
-    admittsource = interest.groupby('hospitaladmitsource').agg(
-    ratio_obs=pd.NamedAgg(column='hospitaladmitsource', aggfunc=lambda x: len(x) / len(interest)),
-    n_stay=pd.NamedAgg(column='patientunitstayid', aggfunc='nunique')).reset_index()
+    # admittsource = interest.groupby('hospitaladmitsource').agg(
+    # ratio_obs=pd.NamedAgg(column='hospitaladmitsource', aggfunc=lambda x: len(x) / len(interest)),
+    # n_stay=pd.NamedAgg(column='patientunitstayid', aggfunc='nunique')).reset_index()
     
-    admittsource.to_csv('eicu_admission_source_summary.csv')
+    # admittsource.to_csv('eicu_admission_source_summary.csv')
     
-    unittype = interest.groupby('unittype').agg(
-    ratio_obs=pd.NamedAgg(column='unittype', aggfunc=lambda x: len(x) / len(interest)),
-    n_stay=pd.NamedAgg(column='patientunitstayid', aggfunc='nunique')).reset_index()
+    # unittype = interest.groupby('unittype').agg(
+    # ratio_obs=pd.NamedAgg(column='unittype', aggfunc=lambda x: len(x) / len(interest)),
+    # n_stay=pd.NamedAgg(column='patientunitstayid', aggfunc='nunique')).reset_index()
     
-    unittype.to_csv('eicu_unittype_summary.csv')
+    # unittype.to_csv('eicu_unittype_summary.csv')
     
-    unitadmittsource = interest.groupby('unitadmitsource').agg(
-    ratio_obs=pd.NamedAgg(column='unitadmitsource', aggfunc=lambda x: len(x) / len(interest)),
-    n_stay=pd.NamedAgg(column='patientunitstayid', aggfunc='nunique')).reset_index()
+    # unitadmittsource = interest.groupby('unitadmitsource').agg(
+    # ratio_obs=pd.NamedAgg(column='unitadmitsource', aggfunc=lambda x: len(x) / len(interest)),
+    # n_stay=pd.NamedAgg(column='patientunitstayid', aggfunc='nunique')).reset_index()
     
-    unitadmittsource.to_csv('eicu_unitadmission_source_summary.csv')
+    # unitadmittsource.to_csv('eicu_unitadmission_source_summary.csv')
     
-    unitstaytype = interest.groupby('unitstaytype').agg(
-    ratio_obs=pd.NamedAgg(column='unitstaytype', aggfunc=lambda x: len(x) / len(interest)),
-    n_stay=pd.NamedAgg(column='patientunitstayid', aggfunc='nunique')).reset_index()
+    # unitstaytype = interest.groupby('unitstaytype').agg(
+    # ratio_obs=pd.NamedAgg(column='unitstaytype', aggfunc=lambda x: len(x) / len(interest)),
+    # n_stay=pd.NamedAgg(column='patientunitstayid', aggfunc='nunique')).reset_index()
     
-    unitstaytype.to_csv('eicu_unitstaytype_summary.csv')
+    # unitstaytype.to_csv('eicu_unitstaytype_summary.csv')
     
     return interest
 
