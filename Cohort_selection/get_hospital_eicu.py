@@ -10,7 +10,7 @@ def hospital(eicu):
     return hospital['hospitalid'].values, df_target
 
 def eicu_subgroup(eicu):
-    eicu_patient_path = '/Users/gwonjeong-eul/Desktop/ecp-scl-macbook/eicu_patients/patient.csv.gz'
+    eicu_patient_path = '/Users/DAHS/Desktop/early_prediction_of_circ_scl/eicu-crd/2.0/patient.csv.gz'
     patient = pd.read_csv(eicu_patient_path, compression = 'gzip')
     # interest = patient[['patientunitstayid', 'hospitaladmitsource', 'unittype', 'unitstaytype', 'unitadmitsource', 'hospitaldischargeoffset', 'hospitaldischargestatus']]
     interest = patient[['patientunitstayid', 'hospitaladmitsource', 'unittype', 'unitstaytype', 'unitadmitsource']]

@@ -10,14 +10,14 @@ import sys
 
 
 
-module_path='/Users/gwonjeong-eul/Desktop/ecp-scl-macbook/ECP_SCL/Cohort_selection/'
+module_path='/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Cohort_selection/'
 if module_path not in sys.path:
     sys.path.append(module_path)
 
-from cohort_loader import *
+from cohort_loader_new_version0229 import *
 from eicu_year_process import *
 
-module_path='/Users/gwonjeong-eul/Desktop/ecp-scl-macbook/ECP_SCL/Experiment(Supervised Learning)/evaluation/'
+module_path='/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment(Supervised Learning)/evaluation/'
 if module_path not in sys.path:
     sys.path.append(module_path)
     
