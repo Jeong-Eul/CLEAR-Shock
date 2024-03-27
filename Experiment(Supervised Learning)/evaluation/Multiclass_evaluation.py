@@ -82,7 +82,7 @@ def unit_sic_evaluation(unittype, model_name_dict, event):
             
             test_output['prediction_label'] = test_preds
             test_output['prediction_prob'] = model.predict_proba(X_test)[:, 1]
-            result_sub = ST_binary_evaluation(event, test_output, model_name, mode = 'eicu', event_task = 'SIC 8h')
+            result_sub = ST_binary_evaluation(event, test_output, _, model_name, mode = 'eicu', event_task = 'SIC 8h')
             result_sub['Subpopulation'] = 'UnitType'
             result_sub['eICU Type'] = type
             result_sub['Model'] = model_name
@@ -109,7 +109,7 @@ def unit_ards_evaluation(unittype, model_name_dict, event):
             
             test_output['prediction_label'] = test_preds
             test_output['prediction_prob'] = model.predict_proba(X_test)[:, 1]
-            result_sub = ST_binary_evaluation(event, test_output, model_name, mode = 'eicu', event_task = 'ARDS 8h')
+            result_sub = ST_binary_evaluation(event, test_output, _,model_name, mode = 'eicu', event_task = 'ARDS 8h')
             result_sub['Subpopulation'] = 'UnitType'
             result_sub['eICU Type'] = type
             result_sub['Model'] = model_name
@@ -641,9 +641,10 @@ def ST_binary_evaluation(event, inference_output, test_prob, model_name, mode, e
         
     elif event_task == 'ARDS 8h':
         result = classifier_ML.event_metric_ARDS8h(event, inference_output, mode, model_name)
-        fb_score = result['IoC(1.5)'].values[0]
+        recall = result['recall'].values[0]
+        precision = precision_score(inference_output.iloc[:, -3], inference_output.prediction_label.astype(int))
         auprc = classifier_ML.ARDS8h_AUPRC(event, inference_output, mode, model_name)
-        
+        fb_score =  (1+(1.5)**2)*(recall*precision)/((1.5)**2 * precision + recall)
         data = {'Model':[model_name],
                 'AUPRC': [auprc],
                 'ARDS score':[fb_score]}
@@ -675,13 +676,14 @@ def ST_binary_evaluation(event, inference_output, test_prob, model_name, mode, e
         result = classifier_ML.event_metric_SIC8h(event, inference_output, mode, model_name)
         # auprc = average_precision_score(inference_output.iloc[:, -3], inference_output.prediction_prob)
         # recall = result['recall'].values[0]
-        fb_score = result['IoC(1.5)'].values[0]
+        recall = result['recall'].values[0]
+        precision = precision_score(inference_output.iloc[:, -3], inference_output.prediction_label.astype(int))
         # precision = precision_score(inference_output.iloc[:, -3], inference_output.prediction_label.astype(int))
         auprc = classifier_ML.SIC8h_AUPRC(event, inference_output, mode, model_name)
         # precisions, recalls, thresholds = precision_recall_curve(inference_output.iloc[:, -3], inference_output.prediction_prob)
         # auprc = auc(recalls, precisions)
         
-        # fb_score =  (1+(1.5)**2)*(recall*precision)/((1.5)**2 * precision + recall)
+        fb_score =  (1+(1.5)**2)*(recall*precision)/((1.5)**2 * precision + recall)
         
         data = {'Model':[model_name],
                 'AUPRC': [auprc],
