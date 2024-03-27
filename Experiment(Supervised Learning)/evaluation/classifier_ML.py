@@ -57,13 +57,23 @@ def classifier(algorithm, x, y, x_valid, valid_output, mode = 'emb'):
             return lgbm_wrapper, valid_output
         
         elif algorithm == 'xgb':
+            # xgbm = XGBClassifier(random_state=42)
+            # xgbm.fit(x, y-1)
+            
+            # valid_preds = xgbm.predict(x_valid)
+            # valid_output['prediction_label'] = valid_preds
+            # valid_output['prediction_prob'] = xgbm.predict_proba(x_valid)[:, 1]
+            # valid_output['prediction_label'] = valid_output['prediction_label']+1
+            
+            # return xgbm, valid_output
+        
             xgbm = XGBClassifier(random_state=42)
-            xgbm.fit(x, y-1)
+            xgbm.fit(x, y)
             
             valid_preds = xgbm.predict(x_valid)
             valid_output['prediction_label'] = valid_preds
             valid_output['prediction_prob'] = xgbm.predict_proba(x_valid)[:, 1]
-            valid_output['prediction_label'] = valid_output['prediction_label']+1
+            valid_output['prediction_label'] = valid_output['prediction_label']
             
             return xgbm, valid_output
         
@@ -192,13 +202,23 @@ def classifier(algorithm, x, y, x_valid, valid_output, mode = 'emb'):
             return lgbm_wrapper, valid_output
         
         elif algorithm == 'xgb':
+            # xgbm = XGBClassifier(random_state=42)
+            # xgbm.fit(x, y-1)
+            
+            # valid_preds = xgbm.predict(x_valid)
+            # valid_output['prediction_label'] = valid_preds
+            # valid_output['prediction_prob'] = xgbm.predict_proba(x_valid)[:, 1]
+            # valid_output['prediction_label'] = valid_output['prediction_label']+1
+            
+            # return xgbm, valid_output
+
             xgbm = XGBClassifier(random_state=42)
-            xgbm.fit(x, y-1)
+            xgbm.fit(x, y)
             
             valid_preds = xgbm.predict(x_valid)
             valid_output['prediction_label'] = valid_preds
             valid_output['prediction_prob'] = xgbm.predict_proba(x_valid)[:, 1]
-            valid_output['prediction_label'] = valid_output['prediction_label']+1
+            valid_output['prediction_label'] = valid_output['prediction_label']
             
             return xgbm, valid_output
         
@@ -314,7 +334,86 @@ def classifier(algorithm, x, y, x_valid, valid_output, mode = 'emb'):
             valid_output['prediction_prob'] = knn.predict_proba(x_valid)[:, 1]
         
             return knn, valid_output
+        
+def subtask_CLF(algorithm, x, y):
+ 
+    if algorithm == 'lgbm':
 
+        lgbm_wrapper = LGBMClassifier(random_state = 42, verbose=-1)
+        
+        lgbm_wrapper.fit(x, y)
+        
+        return lgbm_wrapper
+        
+    elif algorithm == 'xgb':
+        xgbm = XGBClassifier(random_state=42)
+        xgbm.fit(x, y)
+     
+        return xgbm
+        
+    elif algorithm == 'rf':
+        rf = RandomForestClassifier(random_state = 42)
+        rf.fit(x, y)
+        
+        return rf
+    
+    elif algorithm == 'dt':
+    
+        tree = DecisionTreeClassifier(random_state=42).fit(x, y)
+        return tree
+    
+    elif algorithm == 'lr':
+        
+        mMscaler = MinMaxScaler()
+        mMscaler.fit(x)
+        x_scaled = mMscaler.transform(x)
+        
+        logit_regression = LogisticRegression(random_state = 42) 
+        logit_regression.fit(x_scaled, y)
+
+        return logit_regression
+    
+    elif algorithm == 'svm-ovr':
+        
+        mMscaler = MinMaxScaler()
+        mMscaler.fit(x)
+        x_scaled = mMscaler.transform(x)
+
+        svc_ovr = LinearSVC(dual='auto', random_state=42, tol=1e-05, multi_class = 'ovr')
+        calibrated_svm = CalibratedClassifierCV(svc_ovr)
+        
+        calibrated_svm.fit(x_scaled, y)
+
+        return calibrated_svm
+    
+    
+    elif algorithm == 'catboost':
+        cat = CatBoostClassifier(random_state=42, has_time = True, verbose=False)
+        cat.fit(x, y)
+        
+        return cat
+    
+    elif algorithm == 'naivebayes':
+        
+        mMscaler = MinMaxScaler()
+        mMscaler.fit(x)
+        x_scaled = mMscaler.transform(x)
+        
+        nb = GaussianNB()
+        nb.fit(x, y)
+        
+        return nb
+    
+    elif algorithm == 'knn':
+        
+        mMscaler = MinMaxScaler()
+        mMscaler.fit(x)
+        x_scaled = mMscaler.transform(x)
+        
+        knn = KNeighborsClassifier(weights = 'distance')
+        knn.fit(x, y)
+        
+        return knn
 
 def event_metric(event,inference_output,mode, model_name):
    
@@ -525,7 +624,6 @@ def ARDS4h_AUPRC(event, inference_output, mode, model_name):
         new_recalls.append(recall)
     
     auprc = auc(np.array(new_recalls), precisions[:-1])
-    
     return auprc
 
 def event_metric_ARDS8h(event,inference_output,mode, model_name):
@@ -590,7 +688,7 @@ def event_metric_ARDS8h(event,inference_output,mode, model_name):
         True__False_positive += tp_fp_count
                 
     try:
-        event_recall = np.round((captured_event / (len(captured_trajectory)+len(non_captured_trajectory))), 4)
+        event_recall = np.round((captured_event / (len(captured_trajectory)+len(non_captured_trajectory)+0.00001)), 4)
     except:
         print('ZeroDivisionError')
         event_recall = 0
@@ -604,7 +702,7 @@ def event_metric_ARDS8h(event,inference_output,mode, model_name):
     beta = 1.5
     try:
     
-        event_ioc = (1+(beta)**2)*(event_recall*event_precision)/((beta)**2 * event_precision + event_recall)
+        event_ioc = (1+(beta)**2)*(event_recall*event_precision)/((beta)**2 * event_precision + event_recall+0.0001)
     except:
         print('ZeroDivisionError')
         event_ioc = 0
@@ -637,9 +735,7 @@ def ARDS8h_AUPRC(event, inference_output, mode, model_name):
         result = event_metric_ARDS8h(event, evaluation_interest, mode, model_name)
         recall = result['recall'].values[0]
         new_recalls.append(recall)
-    
     auprc = auc(np.array(new_recalls), precisions[:-1])
-    
     return auprc
 
 
