@@ -24,13 +24,13 @@ def split_X_Y(df, mode):
 def split_X_Y_for_VIZ(df, mode):
     
     if mode == 'mimic':
-        X = df.drop(['subject_id', 'stay_id', 'hadm_id','Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1)
+        X = df.drop(['subject_id', 'Unnamed: 0', 'stay_id', 'hadm_id','Annotation', 'Case', 'after_shock_annotation', 'Shock_next_8h', 'INDEX'], axis = 1)
         y = df['Case'].values
         output = df[['stay_id', 'Time_since_ICU_admission', 'vasoactive/inotropic', 'Fluids(ml)', 'Annotation', 'after_shock_annotation', 'Case', 'INDEX', 'Lactate', 'MAP']].copy().reset_index(drop=True)
         output['Case'] = output['Case'].astype(int)
         
     else:
-        X = df.drop(['uniquepid', 'patientunitstayid','Annotation', 'Case', 'Shock_next_8h', 'INDEX'], axis = 1)
+        X = df.drop(['uniquepid', 'Unnamed: 0', 'patientunitstayid','Annotation', 'Case', 'after_shock_annotation', 'Shock_next_8h', 'INDEX', 'hospitalid', 'hospitaldischargeyear'], axis = 1)
         y = df['Case'].values
         output = df[['patientunitstayid', 'Time_since_ICU_admission', 'vasoactive/inotropic', 'Fluids(ml)', 'Annotation','after_shock_annotation','Case', 'INDEX', 'Lactate', 'MAP']].copy().reset_index(drop=True)
         output['Case'] = output['Case'].astype(int)
