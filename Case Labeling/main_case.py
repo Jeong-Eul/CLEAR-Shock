@@ -60,7 +60,6 @@ mimic_labeled['PaO2/FiO2'] = mimic_labeled['PaO2'] / ((mimic_labeled['FIO2 (%)']
 eicu_labeled['PaO2/FiO2'] = eicu_labeled['PaO2'] / ((eicu_labeled['FIO2 (%)'] + 0.00000001)/100)
 
 
-
 # Noise removal
 invalid_columns_mimic, _ = Case.find_invalid_columns(mimic_labeled)
 invalid_columns_eicu, _ = Case.find_invalid_columns(eicu_labeled)
