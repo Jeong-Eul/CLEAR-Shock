@@ -1,7 +1,7 @@
 # CLEAR-Shock: Contrastive LEARning for Shock  
 (Submitted)
 
-<img src="https://github.com/Jeong-Eul/CLEAR/blob/main/Figure/fig6.png" width="30"/>
+<center><img src="https://github.com/Jeong-Eul/CLEAR/blob/main/Figure/fig6.png" width="800" height="500"/>
 
 [Derived Variables]  
 - Deribed_Variable.py: Lactate Clearance, Cumulative sum of vasopressor use amount, Percentage change in measurement  
