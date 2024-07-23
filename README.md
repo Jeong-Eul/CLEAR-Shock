@@ -4,7 +4,7 @@
 <center><img src="https://github.com/Jeong-Eul/CLEAR/blob/main/Figure/fig6.png" width="800" height="500"/>
 
 [Derived Variables]  
-- Deribed_Variable.py: Lactate Clearance, Cumulative sum of vasopressor use amount, Percentage change in measurement  
+- Derived_Variable.py: Lactate Clearance, Cumulative sum of vasopressor use amount, Percentage change in measurement  
 
 [Case Labeling]  
 - Case.py: Annotation, Labeling, Preprocessing for Analysis.  
