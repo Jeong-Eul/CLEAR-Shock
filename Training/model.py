@@ -219,3 +219,140 @@ class FTTransformer(nn.Module):
             # return logits
 
         return x, attns
+
+
+class BaselineFT(nn.Module):
+    def __init__(
+        self,
+        *,
+        categories,
+        num_continuous,
+        dim,
+        depth,
+        heads,
+        dim_head = 16,
+        num_special_tokens = 2,
+        attn_dropout = 0.,
+        ff_dropout = 0.,
+    ):
+        super().__init__()
+        assert all(map(lambda n: n > 0, categories)), 'number of each category must be positive'
+        assert len(categories) + num_continuous > 0, 'input shape must not be null'
+
+        # categories related calculations
+
+        self.num_categories = len(categories)
+        self.num_unique_categories = sum(categories)
+
+        # create category embeddings table
+
+        self.num_special_tokens = num_special_tokens
+        total_tokens = self.num_unique_categories + num_special_tokens
+
+        # for automatically offsetting unique category ids to the correct position in the categories embedding table
+
+        if self.num_unique_categories > 0:
+            categories_offset = F.pad(torch.tensor(list(categories)), (1, 0), value = num_special_tokens)
+            categories_offset = categories_offset.cumsum(dim = -1)[:-1]
+            self.register_buffer('categories_offset', categories_offset)
+
+            # categorical embedding
+
+            self.categorical_embeds = nn.Embedding(total_tokens, dim)
+
+        # continuous
+
+        self.num_continuous = num_continuous
+
+        if self.num_continuous > 0:
+            self.numerical_embedder = NumericalEmbedder(dim, self.num_continuous)
+
+        # cls token
+
+        self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
+
+        # transformer
+
+        self.transformer = Transformer(
+            dim = dim,
+            depth = depth,
+            heads = heads,
+            dim_head = dim_head,
+            attn_dropout = attn_dropout,
+            ff_dropout = ff_dropout
+        )
+
+        # to logits -> change
+
+        self.to_logits = nn.Sequential(
+            nn.Linear(dim, 4),
+        )
+
+    def forward(self, x_categ, x_numer, return_attn = False):
+        assert x_categ.shape[-1] == self.num_categories, f'you must pass in {self.num_categories} values for your categories input'
+
+        xs = []
+        if self.num_unique_categories > 0:
+            x_categ = x_categ + self.categories_offset
+
+            x_categ = self.categorical_embeds(x_categ)
+
+            xs.append(x_categ)
+
+        # add numerically embedded tokens
+        if self.num_continuous > 0:
+            x_numer = self.numerical_embedder(x_numer)
+
+            xs.append(x_numer)
+
+        # concat categorical and numerical
+
+        x = torch.cat(xs, dim = 1)
+
+        # append cls tokens
+        b = x.shape[0]
+        cls_tokens = repeat(self.cls_token, '1 1 d -> b 1 d', b = b)
+        x = torch.cat((cls_tokens, x), dim = 1)
+
+        # attend
+
+        x, _ = self.transformer(x, return_attn = True)
+
+        # get cls token
+
+        x = x[:, 0] # B, dim
+
+        # out in the paper is linear(relu(ln(cls))) -> Use Latent Vector
+
+        logits = self.to_logits(x)
+
+        # if not return_attn:
+            # return logits
+
+        return logits
+
+
+
+class MLP(nn.Module):
+    
+    def __init__(self, dim_feat, drop_rate=0.56):
+        super(MLP, self).__init__()
+
+        
+        # label predictor
+        self.class_classifier = nn.Sequential()
+        self.class_classifier.add_module('c_fc1', nn.Linear(dim_feat, 32))
+        self.class_classifier.add_module('c_bn1', nn.BatchNorm1d(32))
+        self.class_classifier.add_module('c_relu1', nn.ReLU(True))
+        self.class_classifier.add_module('c_drop1', nn.Dropout(drop_rate))
+        self.class_classifier.add_module('c_fc2', nn.Linear(32, 16))
+        self.class_classifier.add_module('c_bn2', nn.BatchNorm1d(16))
+        self.class_classifier.add_module('c_relu2', nn.ReLU(True))
+        self.class_classifier.add_module('c_fc3', nn.Linear(16, 4))
+
+    def forward(self, feature):
+        
+        class_output = self.class_classifier(feature)
+    
+        return class_output
+

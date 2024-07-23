@@ -221,7 +221,7 @@ class TrainingDataset(Dataset):
         # if dataset is eicu
         else:
             
-            mimic = pd.read_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis(new_version0313).csv.gz', compression='gzip')
+            mimic = pd.read_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis.csv.gz', compression='gzip')
             
             self.cat_features = []
             self.num_features = []
@@ -256,6 +256,116 @@ class TrainingDataset(Dataset):
         label = torch.tensor(int(self.y.iloc[index]),dtype=torch.float32)
 
         return X_num_features, X_cat_features, label
+    
+    def __len__(self):
+        return self.y.shape[0]
+    
+
+class MLPDataset(Dataset):
+    def __init__(self,data_path,data_type,mode,seed):
+        self.data_path = data_path
+        self.data_type = data_type # eicu or mimic
+        self.mode = mode # train / valid / test
+        self.target = 'Case'
+        self.seed = seed
+        self.X, self.y = self.__prepare_data__()
+
+    def __prepare_data__(self):
+        df_raw = pd.read_csv(self.data_path, compression='gzip')
+        df_raw = df_raw.drop(['Shock_next_12h', 'after_shock_annotation', 'Unnamed: 0'], axis = 1)
+        df_raw = df_raw[~(df_raw['gender']==2)].reset_index(drop=True)
+
+        df_raw.replace([np.inf, -np.inf], np.nan, inplace=True)
+        df_raw.fillna(0, inplace=True) 
+        
+        df_raw = df_raw[~(df_raw['Case']=='event')]
+        df_raw = df_raw[~((df_raw['INDEX']=='CASE3_CASE4_DF')&(df_raw['Annotation']=='no_circ'))]
+        df_raw['Case'] = pd.to_numeric(df_raw['Case'], errors='coerce')
+        # df_raw = df_raw[~(df_raw['Annotation']=='ambiguous')]
+        
+        if self.data_type == 'mimic':
+            stay = 'stay_id'
+        elif self.data_type == 'eicu':
+            stay = 'patientunitstayid'
+        
+        scaler = MinMaxScaler()
+        
+        # if dataset is eicu
+        if self.data_type == 'mimic':
+            
+            self.cat_features = []
+            self.num_features = []
+        
+            for col in df_raw.columns:
+                if df_raw[col].nunique() == 2:
+                    self.cat_features.append(col)
+                else:
+                    self.num_features.append(col)
+                    
+            df_train, df_valid = data_split(df_raw, self.seed, 0.9, 0.05, 1, mode = self.data_type)
+            
+            if self.mode == "train":
+                X_num = df_train[self.num_features].drop(['Case', 'stay_id', 'subject_id','hadm_id','Annotation'], axis = 1)
+                X_num_scaled = scaler.fit_transform(X_num)
+                
+                X_num = pd.DataFrame(X_num_scaled,columns = X_num.columns)
+                X_cat = df_train[self.cat_features].drop(['Shock_next_8h','INDEX'], axis = 1)
+                X = pd.concat([X_num, X_cat], axis = 1)
+                y = df_train[self.target]
+                return X, y
+            
+            else:
+                X_num_standard = df_train[self.num_features].drop(['Case', 'stay_id', 'subject_id','hadm_id', 'Annotation'], axis = 1)
+                scaler.fit(X_num_standard)
+                
+                X_num = df_valid[self.num_features].drop(['Case', 'stay_id', 'subject_id','hadm_id', 'Annotation'], axis = 1)
+                X_num_scaled = scaler.transform(X_num)
+                
+                X_num = pd.DataFrame(X_num_scaled,columns = X_num.columns)
+                X_cat = df_valid[self.cat_features].drop(['Shock_next_8h','INDEX'], axis = 1)
+                X = pd.concat([X_num, X_cat], axis = 1)
+                y = df_valid[self.target]
+                return X, y
+               
+
+        # if dataset is eicu
+        else:
+            
+            mimic = pd.read_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis.csv.gz', compression='gzip')
+            
+            self.cat_features = []
+            self.num_features = []
+        
+            for col in mimic.columns:
+                if mimic[col].nunique() == 2:
+                    self.cat_features.append(col)
+                else:
+                    self.num_features.append(col)
+                    
+                
+            X_num_standard = mimic[self.num_features].drop(['Case', 'stay_id', 'subject_id','hadm_id','Annotation'], axis = 1)
+            scaler.fit(X_num_standard)
+            
+            to_remove = ['stay_id', 'subject_id', 'hadm_id', 'Case', 'Annotation']
+
+            for item in to_remove:
+                if item in self.num_features:
+                    self.num_features.remove(item)
+            
+            X_num_standard = df_raw[self.num_features]
+            X_num_scaled = scaler.transform(X_num_standard)
+            X_num = pd.DataFrame(X_num_scaled,columns = X_num_standard.columns)
+            X_cat = df_raw[self.cat_features].drop(['Shock_next_8h','INDEX'], axis = 1)
+            X = pd.concat([X_num, X_cat], axis = 1)
+            y = df_raw[self.target]
+            return X, y
+
+    def __getitem__(self,index):
+      
+        X_features = torch.tensor(self.X.iloc[index,:].values,dtype=torch.float32)
+        label = torch.tensor(int(self.y.iloc[index]),dtype=torch.float32)
+
+        return X_features, label
     
     def __len__(self):
         return self.y.shape[0]
@@ -324,7 +434,7 @@ class TableDataset(Dataset):
                 return X_num, X_cat, y
             
             else:
-                mimic = pd.read_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis(new_version0313).csv.gz', compression='gzip')
+                mimic = pd.read_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis.csv.gz', compression='gzip')
                 mimic = mimic.drop(['Shock_next_12h', 'after_shock_annotation', 'Unnamed: 0'], axis = 1)
                 mimic = mimic[~(mimic['gender']==2)].reset_index(drop=True)
                 mimic = mimic[~(mimic['Case']=='event')]
@@ -364,7 +474,7 @@ class TableDataset(Dataset):
             if self.mode == 'all':
                 # df_raw = df_raw[df_raw['hospitaldischargeyear']==2014]
                 
-                mimic = pd.read_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis(new_version0313).csv.gz', compression='gzip')
+                mimic = pd.read_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis.csv.gz', compression='gzip')
                 mimic = mimic.drop(['Shock_next_12h', 'after_shock_annotation', 'Unnamed: 0'], axis = 1)
                 mimic = mimic[~(mimic['gender']==2)].reset_index(drop=True)
                 mimic = mimic[~(mimic['Case']=='event')]
@@ -402,7 +512,7 @@ class TableDataset(Dataset):
 
                 df_raw = df_raw[df_raw['hospitaldischargeyear']==2015]
                 
-                mimic = pd.read_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis(new_version0313).csv.gz', compression='gzip')
+                mimic = pd.read_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis.csv.gz', compression='gzip')
                 mimic = mimic.drop('Shock_next_12h', axis = 1)
                 self.cat_features = []
                 self.num_features = []
