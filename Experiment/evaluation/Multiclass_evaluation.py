@@ -650,6 +650,92 @@ def MULT_evaluation(inference_output, event, model_name, mode):
     return pd.DataFrame(data).fillna(0)
 
 
+def MULT_evaluation_for_DL_baseline(inference_output, event, model_name, mode):
+    inference_output_no_amb = inference_output[inference_output['Annotation']=='ambiguous']
+    accuracy = accuracy_score(inference_output.Case, inference_output.prediction_label)
+    roc_auc_dict = roc_auc_score_multiclass(inference_output.Case, inference_output.prediction_label)
+    prc_auc_dict = auprc_score_multiclass(inference_output.Case, inference_output.prediction_label)
+    report = classification_report(inference_output.Case, inference_output.prediction_label, output_dict=True)
+    report_int_keys = {int(float(k)): v for k, v in report.items() if k not in ['accuracy', 'macro avg', 'weighted avg']}
+    event_for = inference_output[inference_output['INDEX']=='CASE1_CASE2_DF']
+    event_for['prediction_label'] = event_for['prediction_label'].replace({1:0, 2:1, 3:1, 4:1})
+    event_for['Case'] = event_for['Case'].replace({1:0, 2:1, 3:1, 4:1})
+    
+    result = classifier_ML.event_metric(event, event_for, mode, model_name)
+    case2_recall_event = result['recall'].values[0]
+    case2_precision_event = result['precision'].values[0]
+    
+    roc_auc_dict_case2 = roc_auc_score_multiclass(inference_output_no_amb.Case, inference_output_no_amb.prediction_label)
+    prc_auc_dict_case2 = auprc_score_multiclass(inference_output_no_amb.Case, inference_output_no_amb.prediction_label)
+    
+
+    if 1 in inference_output.Case.values:
+        try:
+            case1_score = np.round(report_int_keys[1]['f1-score'], 4)
+        except:
+            print(report)
+        case1_aucroc = np.round(roc_auc_dict[1], 4)
+        case1_auprc = np.round(prc_auc_dict[1], 4)
+        
+    else:
+
+        case1_score = '-'
+        case1_aucroc = '-'
+        case1_auprc = '-'
+        
+    if 2 in inference_output.Case.values:
+        beta = 2
+        # case2_recall = np.round(report_int_keys[2]['recall'], 4)
+        # case2_precision = np.round(report_int_keys[2]['precision'], 4)
+        case2_score = np.round((1+(beta)**2)*(case2_recall_event*case2_precision_event)/((beta)**2 * case2_precision_event + case2_recall_event), 4)
+        case2_aucroc = np.round(roc_auc_dict_case2[2], 4)
+        case2_auprc = np.round(prc_auc_dict_case2[2], 4)
+        
+    else:
+        case2_recall = '-'
+        case2_precision = '-'
+        case2_score = '-'
+        case2_aucroc = '-'
+        case2_auprc = '-'
+
+    if 3 in inference_output.Case.values:
+
+        case3_score = np.round(report_int_keys[3]['f1-score'], 4)
+        case3_aucroc = np.round(roc_auc_dict[3], 4)
+        case3_auprc = np.round(prc_auc_dict[3], 4)
+        
+    else:
+       
+        case3_score = '-'
+        case3_aucroc = '-'
+        case3_auprc = '-'
+
+    if 4 in inference_output.Case.values:
+
+        case4_score = np.round(report_int_keys[4]['f1-score'], 4)
+        case4_aucroc = np.round(roc_auc_dict[4], 4)
+        case4_auprc = np.round(prc_auc_dict[4], 4)
+        
+    else:
+ 
+        case4_score = '-'
+        case4_aucroc = '-'
+        case4_auprc = '-'
+        
+    
+    # data = {'Model':[model_name], 'Accuracy': [accuracy],
+    #         'Case 1 AUROC': [case1_aucroc],'Case 1 AUPRC': [case1_auprc],'Case 2 AUROC': [case2_aucroc],'Case 2 AUPRC': [case2_auprc],
+    #         'Case 3 AUROC': [case3_aucroc],'Case 3 AUPRC': [case3_auprc],'Case 4 AUROC': [case4_aucroc],'Case 4 AUPRC': [case4_auprc],
+    #         'Case 1 Score': [case1_score],'Case 2 Score': [case2_score], 'Case 3 Score': [case3_score],'Case 3 Score': [case3_score], 
+    #         'Case 4 Score': [case4_score]}
+    
+    data = {'Model':[model_name], 'Accuracy': [accuracy],
+            'Case 1 AUROC': [case1_aucroc],'Case 1 AUPRC': [case1_auprc],'Case 2 AUROC': [case2_aucroc],'Case 2 AUPRC': [case2_auprc],
+            'Case 3 AUROC': [case3_aucroc],'Case 3 AUPRC': [case3_auprc],'Case 4 AUROC': [case4_aucroc],'Case 4 AUPRC': [case4_auprc]}
+
+    return pd.DataFrame(data).fillna(0)
+
+
 def threshold_for_capture(inference_output, event, model_name, mode):
     
     set = inference_output[inference_output['INDEX']=='CASE1_CASE2_DF']

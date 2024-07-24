@@ -31,7 +31,7 @@ python Baseline_MLP.py \
     --ckpt_dir "./checkpoint" \
     --log_dir "./log" \
     --result_dir "./result" \
-    --mode "train" \
+    --mode "Inference" \
     --mimic_data_dir "C:\Users\DAHS\Desktop\ECP_CONT\ECP_SCL\Case Labeling\mimic_analysis.csv.gz" \
     --eicu_data_dir "C:\Users\DAHS\Desktop\ECP_CONT\ECP_SCL\Case Labeling\eicu_analysis.csv.gz" 
 

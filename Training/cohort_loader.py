@@ -14,7 +14,11 @@ import gc
 import sys
 
 import eicu_year_process
+module_path='/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment/evaluation/'
+if module_path not in sys.path:
+    sys.path.append(module_path)
 
+import get_hospital_eicu
 warnings.filterwarnings('ignore')
 
 def check_class_ratio(dataset):
@@ -282,11 +286,14 @@ class MLPDataset(Dataset):
         df_raw = df_raw[~((df_raw['INDEX']=='CASE3_CASE4_DF')&(df_raw['Annotation']=='no_circ'))]
         df_raw['Case'] = pd.to_numeric(df_raw['Case'], errors='coerce')
         # df_raw = df_raw[~(df_raw['Annotation']=='ambiguous')]
+
         
         if self.data_type == 'mimic':
             stay = 'stay_id'
         elif self.data_type == 'eicu':
             stay = 'patientunitstayid'
+            df_raw = eicu_year_process.matching_patient(df_raw)
+            _, df_raw = get_hospital_eicu.hospital(df_raw)
         
         scaler = MinMaxScaler()
         
@@ -332,7 +339,7 @@ class MLPDataset(Dataset):
         else:
             
             mimic = pd.read_csv('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis.csv.gz', compression='gzip')
-            
+            mimic = mimic.drop(['Shock_next_12h', 'after_shock_annotation', 'Unnamed: 0'], axis = 1)
             self.cat_features = []
             self.num_features = []
         

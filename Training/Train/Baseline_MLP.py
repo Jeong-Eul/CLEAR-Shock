@@ -241,101 +241,71 @@ if __name__ == '__main__':
             
         
             
-    # elif args.mode == 'Get_Embedding':
-    #     eicu_train = TableDataset(data_path=args.eicu_data_dir, data_type='eicu',mode='all',seed=args.seed)
-    #     loader_eicu_out = DataLoader(eicu_train, batch_size=args.batch_size, shuffle=False, drop_last=False)
+    elif args.mode == 'Inference':
+        print('Starting Inference Mode')
+        eicu_train = MLPDataset(data_path=args.eicu_data_dir, data_type='eicu',mode='all',seed=args.seed)
+        loader_eicu_out = DataLoader(eicu_train, batch_size=args.batch_size, shuffle=False, drop_last=False)
 
-    #     mimic_train = TableDataset(data_path=args.mimic_data_dir, data_type='mimic',mode='train',seed=args.seed)
-    #     loader_trn_out = DataLoader(mimic_train, batch_size=args.batch_size, shuffle=False, drop_last=False)
+        mimic_train = MLPDataset(data_path=args.mimic_data_dir, data_type='mimic',mode='train',seed=args.seed)
+        loader_trn_out = DataLoader(mimic_train, batch_size=args.batch_size, shuffle=False, drop_last=False)
 
-    #     mimic_valid = TableDataset(data_path=args.mimic_data_dir, data_type='mimic',mode='valid',seed=args.seed)
-    #     loader_val_out = DataLoader(mimic_valid, batch_size=args.batch_size, shuffle=False, drop_last=False)
+        mimic_valid = MLPDataset(data_path=args.mimic_data_dir, data_type='mimic',mode='valid',seed=args.seed)
+        loader_val_out = DataLoader(mimic_valid, batch_size=args.batch_size, shuffle=False, drop_last=False)
         
-    #     # model = FTTransformer(categories=card_categories,
-    #     # num_continuous=157,
-    #     # dim=78,
-    #     # depth=4,
-    #     # heads=5,
-    #     # dim_head=52,
-    #     # num_special_tokens = 2,
-    #     # attn_dropout=0.4585,
-    #     # ff_dropout=0.5641).to(device)
+        emb_model = MLP(dim_feat =mimic_train.X.shape[1], drop_rate = args.ff_dropout).to(device)
         
-    #     model = FTTransformer(categories=card_categories,
-    #     num_continuous=args.num_cont,
-    #     dim=args.dim,
-    #     depth=args.depth,
-    #     heads=args.heads,
-    #     dim_head=args.dim_head,
-    #     num_special_tokens = 2,
-    #     attn_dropout=args.attn_dropout,
-    #     ff_dropout=args.ff_dropout).to(device)
+        checkpoint = torch.load(f'{args.ckpt_dir}/MLP_Baseline_pattern.pth')
+        emb_model.load_state_dict(checkpoint)
         
-    #     checkpoint = torch.load("Contrastive_Embedding_Net_ftt(0313_best_batch=64).pt")
-    #     model.load_state_dict(checkpoint["model_state_dict"])
-        
-    #     def make_embeded_df_valid(model_name):
+
     
-    #         print('Start Getting the latent space vector (Valid sample)')
-    #         model_name.eval()
-    #         with torch.no_grad():
-    #             for idx, batch_data in enumerate(tqdm(loader_val_out)):
-    #                 X_num, X_cat, _ = batch_data
-    #                 X_num, X_cat = X_num.to(device), X_cat.to(device)
-    #                 latent, _ = model_name(X_cat, X_num, True)
-
-    #                 ## atttnmap -> (depth,b,head,seq,seq)
-    #                 if not idx:
-    #                     # cum_attn_map = np.mean(att_valid.detach().cpu().numpy(),axis = 1)
-    #                     latent_arrays = latent.detach().cpu().numpy()
+        # print('Start Getting the Valid Prediction value')
+        # emb_model.eval()
+        # with torch.no_grad():
+        #     for idx, batch_data in enumerate(tqdm(loader_val_out)):
+        #         X_value, label = batch_data
+        #         X_value, label = X_value.to(device), label.to(device)
+        #         pred = emb_model(X_value)
                 
-    #                 else:
-    #                     # cum_attn_map += np.mean(att_valid.detach().cpu().numpy(),axis = 1)
-    #                     latent_arrays = np.vstack((latent_arrays,latent.detach().cpu().numpy()))
+        #         probabilities = F.softmax(pred, dim=1)
+        #         predicted_classes = torch.argmax(probabilities, dim=1)
+        #         predicted_classes = predicted_classes.unsqueeze(1)
                 
-    #             np.save('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Cohort_selection/Train/result/emb_valid_new_version(0313).npy',latent_arrays)
-    #             print(latent_arrays.shape)          
-        
-    #     def make_embeded_df_train(model_name):
-
-    #         print('Start Getting the latent space vector (Train sample)')
-    #         model_name.eval()
-    #         with torch.no_grad():
-    #             for idx, batch_data in enumerate(tqdm(loader_trn_out)):
-    #                 X_num, X_cat, _ = batch_data
-    #                 X_num, X_cat = X_num.to(device), X_cat.to(device)
-    #                 latent, _ = model_name(X_cat, X_num, True)
-
-    #                 ## atttnmap -> (depth,b,head,seq,seq)
-    #                 if not idx:
-    #                     latent_arrays = latent.detach().cpu().numpy()
-                
-    #                 else:
-    #                     latent_arrays = np.vstack((latent_arrays,latent.detach().cpu().numpy()))
-
-    #             np.save('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Cohort_selection/Train/result/emb_train_new_version(0313).npy',latent_arrays)
-    #             print(latent_arrays.shape)         
+        #         targets = predicted_classes + 1
+             
+        #         if not idx:
+        #             pred_arrays = targets.detach().cpu().numpy()
+        #             label_arrays = label.detach().cpu().numpy()
             
-    #     def make_embeded_df_test(model_name):
-
-    #         print('Start Getting the latent space vector (Test sample)')
-
-    #         model_name.eval()
-    #         with torch.no_grad():
-    #             for idx, batch_data in enumerate(tqdm(loader_eicu_out)):
-    #                 X_num, X_cat, _ = batch_data
-    #                 X_num, X_cat = X_num.to(device), X_cat.to(device)
-    #                 latent, _ = model_name(X_cat, X_num, True)
-
-    #                 ## atttnmap -> (depth,b,head,seq,seq)
-    #                 if not idx:
-    #                     latent_arrays = latent.detach().cpu().numpy()
+        #         else:
+        #             pred_arrays = np.vstack((pred_arrays,targets.detach().cpu().numpy()))
+        #             label_arrays = np.vstack((label_arrays,label.detach().cpu().numpy()))
+            
+        #     np.save('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Training/Train/result/MLP_inference_valid.npy',pred_arrays)       
+        
+    
+        print('Start Getting the Test Prediction value')
+        emb_model.eval()
+        with torch.no_grad():
+            for idx, batch_data in enumerate(tqdm(loader_eicu_out)):
+                X_value, label = batch_data
+                X_value, label = X_value.to(device), label.to(device)
+                pred = emb_model(X_value)
                 
-    #                 else:
-    #                     latent_arrays = np.vstack((latent_arrays,latent.detach().cpu().numpy()))
-
+                probabilities = F.softmax(pred, dim=1)
+                predicted_classes = torch.argmax(probabilities, dim=1)
+                predicted_classes = predicted_classes.unsqueeze(1)
                 
-    #             np.save('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Cohort_selection/Train/result/emb_eicu_new_version(0313).npy',latent_arrays)
+                targets = predicted_classes + 1
+
+                if not idx:
+                    pred_arrays = targets.detach().cpu().numpy()
+            
+                else:
+                    pred_arrays = np.vstack((pred_arrays,targets.detach().cpu().numpy()))
+
+            
+            np.save('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Training/Train/result/MLP_inference_test.npy',pred_arrays)
                 
     # elif args.mode == 'Get_Feature_Importance':
 
