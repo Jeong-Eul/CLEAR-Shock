@@ -49,6 +49,13 @@ if __name__ == '__main__':
     parser.add_argument("--num_epoch", default=300, type=int, dest="num_epoch")
 
     # Model
+    parser.add_argument("--num_cont", default=61, type=int, dest="num_cont", help = "Nums of Continuous Features")
+    parser.add_argument("--num_cat", default=57, type=int, dest="num_cat", help = "Nums of Categorical Features But Not Use")
+    parser.add_argument("--dim", default=32, type=int, dest="dim", help = "Embedding Dimension of Input Data ")
+    parser.add_argument("--dim_head", default=16, type=int, dest="dim_head", help = "Dimension of Attention(Q,K,V)")
+    parser.add_argument("--depth", default=6, type=int, dest="depth", help = "Nums of Attention Layer Depth")
+    parser.add_argument("--heads", default=8, type=int, dest="heads", help='Nums of Attention head')
+    parser.add_argument("--attn_dropout", default=0.1, type=float, dest="attn_dropout", help='Ratio of Attention Layer dropout')
     parser.add_argument("--ff_dropout", default=0.1, type=float, dest="ff_dropout", help='Ratio of FeedForward Layer dropout')
     parser.add_argument("--patience", default=4, type=float, dest="patience", help='Traininig step adjustment')
 
@@ -88,9 +95,9 @@ if __name__ == '__main__':
 
     ## Build Dataset 
     print(f'Build Dataset : {args.mimic_data_dir} ....')
-    dataset_train = MLPDataset(data_path=args.mimic_data_dir, data_type='mimic',mode='train',seed=args.seed)
+    dataset_train = FT_EMB_Dataset(data_path=args.mimic_data_dir, data_type='mimic',mode='train',seed=args.seed)
     # sample weight
-    # y_train_indices = dataset_train.X.index
+    # y_train_indices = dataset_train.df_num.index
     # y_train = [dataset_train.y[i] for i in y_train_indices]
     # class_sample_count = np.array([len(np.where(y_train == t)[0]) for t in np.unique(y_train)])
 
@@ -102,13 +109,19 @@ if __name__ == '__main__':
     
     loader_train = DataLoader(dataset_train, batch_size=args.batch_size, shuffle=True, drop_last=True)
 
+    # Tuple Containing the number of unique values within each category
+    card_categories = []
+    for col in dataset_train.df_cat.columns:
+        card_categories.append(dataset_train.df_cat[col].nunique())
+        
+        
     def train(trial, search = False):
     
         
         patience = args.patience
         early_stop_counter = 0
         
-        log_file = "MLP.txt" 
+        log_file = "FT-Transformer.txt" 
             
         def log_message(message):
             with open(log_file, "a") as file:
@@ -125,24 +138,50 @@ if __name__ == '__main__':
             search_iter += 1
             
             lr = trial.suggest_uniform('lr', 0.000009, 0.0005)
-
+            dim      = trial.suggest_int('emb dim', 60,100)
+            dim_head      = trial.suggest_int('Dimension of Attention(Q,K,V)', 16,100)
+            heads = trial.suggest_int('head', 2,6)
+            depth      = trial.suggest_int('depth', 2,4)
             ff_dropout = trial.suggest_uniform('FeedForward Layer dropout', 0.5, 0.79)
+            temp       = trial.suggest_uniform('temp', 0.1, 0.5)
+            lambda_weight = trial.suggest_uniform('weight decay', 0.2, 0.9)
             total_epoch = args.num_epoch
             
         else:
             lr = args.lr
+            dim      = args.dim
+            dim_head      = args.dim_head
+            heads = args.heads
+            depth      = args.depth
             ff_dropout = args.ff_dropout
+            temp       = 0.1
             total_epoch = args.num_epoch
 
         
-        print(f'learning_rate : {lr}, \nepoch :  {total_epoch}, drop_rate : {ff_dropout:.4f}')
-        wandb.init(name=f'MLP-Baseline: {lr}',
+        print(f'learning_rate : {lr}, \nepoch :  {total_epoch}, Embedding Dimension of Input Data : {dim}, Dimension of Attention : {dim_head}, Attention Head : {heads}, Nums of Attention Layer Depth : {depth} drop_rate : {ff_dropout:.4f} temperature : {temp:.4f}')
+        wandb.init(name=f'Ftt-Baseline: {lr}',
             project="CLEAR-Shock", config={
             "learning_rate": lr,
             "dropout": ff_dropout,
+            'dim': dim,
+            'depth':depth,
+            'heads':heads,
+            'dim_head':dim_head,
+            'attn_dropout':args.attn_dropout,
+            'temp':temp,
+            # 'weight decay':lambda_weight,
+            'num_special_tokens': 2,
         })
         # model define
-        emb_model = MLP(dim_feat =dataset_train.X.shape[1], drop_rate = ff_dropout).to(device)
+        emb_model = BaselineFT(categories=card_categories,
+        num_continuous=args.num_cont,
+        dim=dim,
+        depth=depth,
+        heads=heads,
+        dim_head=dim_head,
+        num_special_tokens = 2,
+        attn_dropout=ff_dropout,
+        ff_dropout=ff_dropout).to(device)
 
         entropy = nn.CrossEntropyLoss().to(device)
         optimizer = optim.AdamW(emb_model.parameters(), lr = lr)
@@ -156,10 +195,10 @@ if __name__ == '__main__':
             for num_iter, batch_data in enumerate(tqdm(loader_train)):
                 optimizer.zero_grad()
                 
-                X_value, label = batch_data
-                X_value, label = X_value.to(device), label.to(device)
+                X_num, X_cat, label = batch_data
+                X_num, X_cat, label = X_num.to(device), X_cat.to(device), label.to(device)
 
-                pred = emb_model(X_value)
+                pred = emb_model(X_cat,X_num,True)
                 targets = label - 1
                 label =  targets.type(torch.LongTensor).to(device)
                 
@@ -178,13 +217,13 @@ if __name__ == '__main__':
                 emb_model.eval()
                 running_loss = 0
                 for num_iter, batch_data in enumerate(tqdm(loader_val)):
-                    X_value, label = batch_data
-                    X_value, label = X_value.to(device), label.to(device)
+                    X_num, X_cat, label = batch_data
+                    X_num, X_cat, label = X_num.to(device), X_cat.to(device), label.to(device)
                     
                     targets = label - 1
                     label =  targets.type(torch.LongTensor).to(device)
                     
-                    pred = emb_model(X_value)
+                    pred = emb_model(X_cat,X_num,True)
                     loss = entropy(pred.to(device), label)                
                     running_loss += loss.item()
                     
@@ -196,7 +235,7 @@ if __name__ == '__main__':
                 print(f'Best Loss {Best_valid_loss:.4f} -> {avg_valid_loss:.4f} Update! & Save Checkpoint')
                 Best_valid_loss = avg_valid_loss
                 early_stop_counter = 0
-                torch.save(emb_model.state_dict(),f'{args.ckpt_dir}/MLP_Baseline_pattern.pth')
+                torch.save(emb_model.state_dict(),f'{args.ckpt_dir}/FTT_EMB_pattern.pth')
                 
             else:
                 early_stop_counter += 1
@@ -210,7 +249,7 @@ if __name__ == '__main__':
     
     
     if args.mode == "train":
-        dataset_val = MLPDataset(data_path=args.mimic_data_dir, data_type='mimic',mode='valid',seed=args.seed)
+        dataset_val = FT_EMB_Dataset(data_path=args.mimic_data_dir, data_type='mimic',mode='valid',seed=args.seed)
         loader_val = DataLoader(dataset_val, batch_size=args.batch_size, shuffle=False, drop_last=True)
         
         gc.collect()
@@ -242,30 +281,37 @@ if __name__ == '__main__':
         
             
     elif args.mode == 'Inference':
-        print('Starting Inference Mode')
-        eicu_train = MLPDataset(data_path=args.eicu_data_dir, data_type='eicu',mode='all',seed=args.seed)
+        eicu_train = FT_EMB_Dataset(data_path=args.eicu_data_dir, data_type='eicu',mode='all',seed=args.seed)
         loader_eicu_out = DataLoader(eicu_train, batch_size=args.batch_size, shuffle=False, drop_last=False)
 
-        mimic_train = MLPDataset(data_path=args.mimic_data_dir, data_type='mimic',mode='train',seed=args.seed)
+        mimic_train = FT_EMB_Dataset(data_path=args.mimic_data_dir, data_type='mimic',mode='train',seed=args.seed)
         loader_trn_out = DataLoader(mimic_train, batch_size=args.batch_size, shuffle=False, drop_last=False)
 
-        mimic_valid = MLPDataset(data_path=args.mimic_data_dir, data_type='mimic',mode='valid',seed=args.seed)
+        mimic_valid = FT_EMB_Dataset(data_path=args.mimic_data_dir, data_type='mimic',mode='valid',seed=args.seed)
         loader_val_out = DataLoader(mimic_valid, batch_size=args.batch_size, shuffle=False, drop_last=False)
         
-        emb_model = MLP(dim_feat =mimic_train.X.shape[1], drop_rate = args.ff_dropout).to(device)
+        model = BaselineFT(categories=card_categories,
+        num_continuous=args.num_cont,
+        dim=args.dim,
+        depth=args.depth,
+        heads=args.heads,
+        dim_head=args.dim_head,
+        num_special_tokens = 2,
+        attn_dropout=args.attn_dropout,
+        ff_dropout=args.ff_dropout).to(device)
         
-        checkpoint = torch.load(f'{args.ckpt_dir}/MLP_Baseline_pattern.pth')
-        emb_model.load_state_dict(checkpoint)
-        
-
+        checkpoint = torch.load(f'{args.ckpt_dir}/FTT_EMB_pattern.pth')
+        model.load_state_dict(checkpoint)
     
+
         print('Start Getting the Valid Prediction value')
-        emb_model.eval()
+        model.eval()
         with torch.no_grad():
             for idx, batch_data in enumerate(tqdm(loader_val_out)):
-                X_value, label = batch_data
-                X_value, label = X_value.to(device), label.to(device)
-                pred = emb_model(X_value)
+                X_num, X_cat, label = batch_data
+                X_num, X_cat, label = X_num.to(device), X_cat.to(device), label.to(device)
+            
+                pred = model(X_cat,X_num,True)
                 
                 probabilities = F.softmax(pred, dim=1)
                 predicted_classes = torch.argmax(probabilities, dim=1)
@@ -275,22 +321,21 @@ if __name__ == '__main__':
              
                 if not idx:
                     pred_arrays = targets.detach().cpu().numpy()
-                    
             
                 else:
                     pred_arrays = np.vstack((pred_arrays,targets.detach().cpu().numpy()))
-                    
             
-            np.save('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Training/Train/result/MLP_inference_valid.npy',pred_arrays)       
+            np.save('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Training/Train/result/FTT_inference_valid_emb.npy',pred_arrays)       
         
     
         print('Start Getting the Test Prediction value')
-        emb_model.eval()
+        model.eval()
         with torch.no_grad():
             for idx, batch_data in enumerate(tqdm(loader_eicu_out)):
-                X_value, label = batch_data
-                X_value, label = X_value.to(device), label.to(device)
-                pred = emb_model(X_value)
+                X_num, X_cat, label = batch_data
+                X_num, X_cat, label = X_num.to(device), X_cat.to(device), label.to(device)
+            
+                pred = model(X_cat,X_num,True)
                 
                 probabilities = F.softmax(pred, dim=1)
                 predicted_classes = torch.argmax(probabilities, dim=1)
@@ -304,8 +349,7 @@ if __name__ == '__main__':
                 else:
                     pred_arrays = np.vstack((pred_arrays,targets.detach().cpu().numpy()))
 
-            
-            np.save('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Training/Train/result/MLP_inference_test.npy',pred_arrays)
+            np.save('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Training/Train/result/FTT_inference_test_emb.npy',pred_arrays)
                 
     # elif args.mode == 'Get_Feature_Importance':
 
@@ -379,7 +423,7 @@ if __name__ == '__main__':
     #     heads = 5
     #     layers = 4
 
-    #     columns = ['CLS_Token'] + dataset_train.df_cat.columns.tolist() + dataset_train.X.columns.tolist()
+    #     columns = ['CLS_Token'] + dataset_train.df_cat.columns.tolist() + dataset_train.df_num.columns.tolist()
     #     cls = [2.0, 4.0]
 
     #     valid_indices = [i for i, col in enumerate(columns) if  col != "CLS_Token"]

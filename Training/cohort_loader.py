@@ -21,6 +21,14 @@ if module_path not in sys.path:
 import get_hospital_eicu
 warnings.filterwarnings('ignore')
 
+module_path='/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Experiment/evaluation/'
+if module_path not in sys.path:
+    sys.path.append(module_path)
+    
+from integrating_embedding import *
+
+import integrating_embedding
+
 def check_class_ratio(dataset):
     class_ratio = round(np.mean(dataset.Case), 4)
     return class_ratio
@@ -404,6 +412,8 @@ class TableDataset(Dataset):
             stay = 'stay_id'
         elif self.data_type == 'eicu':
             stay = 'patientunitstayid'
+            df_raw = eicu_year_process.matching_patient(df_raw)
+            _, df_raw = get_hospital_eicu.hospital(df_raw)
         
         scaler = MinMaxScaler()
         
@@ -554,6 +564,217 @@ class TableDataset(Dataset):
         label = torch.tensor(int(self.y.iloc[index]),dtype=torch.float32)
 
         return X_num_features, X_cat_features, label
+    
+    def __len__(self):
+        return self.y.shape[0]
+    
+class FT_EMB_Dataset(Dataset):
+    def __init__(self,data_path,data_type,mode,seed):
+        self.data_path = data_path
+        self.data_type = data_type # eicu or mimic
+        self.mode = mode # train / valid / test / fine
+        self.target = 'Case'
+        self.seed = seed
+        self.df_num, self.df_cat, self.y = self.__prepare_data__()
+
+    def __prepare_data__(self):
+       
+        emb_path_trn_mimic = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Training/Train/result/emb_train_new_version.npy'
+        emb_path_vld_mimic = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Training/Train/result/emb_valid_new_version.npy'
+        emb_path_trn_eicu = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Training/Train/result/emb_eicu_new_version.npy'
+
+        mimic_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis.csv.gz'
+        eicu_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/eicu_analysis.csv.gz'
+        
+        if self.data_type == 'mimic':
+            stay = 'stay_id'
+            mimic_train_emb, mimic_valid_emb, _ = integrating_embedding.integrating(mimic_path, emb_path_trn_mimic, emb_path_vld_mimic, None, 'mimic')
+            
+        elif self.data_type == 'eicu':
+            stay = 'patientunitstayid'
+            eicu_test_emb, _, _ = integrating_embedding.integrating(eicu_path, emb_path_trn_eicu, None, None, 'eicu')
+        
+        scaler = MinMaxScaler()
+        
+        if self.data_type == 'mimic':
+            
+            self.cat_features = []
+            self.num_features = []
+        
+            for col in mimic_train_emb.columns:
+                if mimic_train_emb[col].nunique() == 2:
+                    self.cat_features.append(col)
+                else:
+                    self.num_features.append(col)
+            if self.mode != 'noevent':         
+                pass
+            if self.mode == "train":
+                X_num = mimic_train_emb[self.num_features].drop(['Case', 'stay_id', 'subject_id','hadm_id','Annotation', 'Unnamed: 0', 'after_shock_annotation'], axis = 1)
+                X_num_scaled = scaler.fit_transform(X_num)
+                
+                X_num = pd.DataFrame(X_num_scaled,columns = X_num.columns)
+                X_cat = mimic_train_emb[self.cat_features].drop(['Shock_next_8h','INDEX'], axis = 1)
+                y = mimic_train_emb[self.target]
+                return X_num, X_cat, y
+            
+            elif self.mode == "valid":
+                X_num_standard = mimic_train_emb[self.num_features].drop(['Case', 'stay_id', 'subject_id','hadm_id', 'Annotation', 'Unnamed: 0', 'after_shock_annotation'], axis = 1)
+                scaler.fit(X_num_standard)
+                
+                X_num = mimic_valid_emb[self.num_features].drop(['Case', 'stay_id', 'subject_id','hadm_id', 'Annotation', 'Unnamed: 0', 'after_shock_annotation'], axis = 1)
+                X_num_scaled = scaler.transform(X_num)
+                
+                X_num = pd.DataFrame(X_num_scaled,columns = X_num.columns)
+                X_cat = mimic_valid_emb[self.cat_features].drop(['Shock_next_8h','INDEX'], axis = 1)
+                y = mimic_valid_emb[self.target]
+                return X_num, X_cat, y
+
+        # if dataset is eicu
+        else:
+            mimic_train_emb, _, _ = integrating_embedding.integrating(mimic_path, emb_path_trn_mimic, emb_path_vld_mimic, None, 'mimic')
+            # df_raw = eicu_year_process.matching_patient(df_raw)
+            
+            if self.mode == 'all':
+                # df_raw = df_raw[df_raw['hospitaldischargeyear']==2014]
+                
+                self.cat_features = []
+                self.num_features = []
+            
+                for col in mimic_train_emb.columns:
+                    if mimic_train_emb[col].nunique() == 2:
+                        self.cat_features.append(col)
+                    else:
+                        self.num_features.append(col)
+                        
+                X_num_standard = mimic_train_emb[self.num_features].drop(['Case', 'stay_id', 'subject_id','hadm_id', 'Annotation', 'Unnamed: 0', 'after_shock_annotation'], axis = 1)
+                scaler.fit(X_num_standard)
+                
+                to_remove = ['stay_id', 'subject_id', 'hadm_id', 'Case', 'Annotation']
+
+                for item in to_remove:
+                    if item in self.num_features:
+                        self.num_features.remove(item)
+                
+                X_num_standard = eicu_test_emb[self.num_features].drop(['Unnamed: 0', 'after_shock_annotation'], axis = 1)
+                X_num_scaled = scaler.transform(X_num_standard)
+                X_num = pd.DataFrame(X_num_scaled,columns = X_num_standard.columns)
+                X_cat = eicu_test_emb[self.cat_features].drop(['Shock_next_8h','INDEX'], axis = 1)
+                y = eicu_test_emb[self.target]
+                return X_num, X_cat, y
+            
+
+    def __getitem__(self,index):
+      
+        X_num_features = torch.tensor(self.df_num.iloc[index,:].values,dtype=torch.float32)
+        X_cat_features = torch.tensor(self.df_cat.iloc[index,:].values,dtype=torch.float32).long()
+        label = torch.tensor(int(self.y.iloc[index]),dtype=torch.float32)
+
+        return X_num_features, X_cat_features, label
+    
+    def __len__(self):
+        return self.y.shape[0]
+    
+    
+class MLP_EMB_Dataset(Dataset):
+    def __init__(self,data_path,data_type,mode,seed):
+        self.data_path = data_path
+        self.data_type = data_type # eicu or mimic
+        self.mode = mode # train / valid / test
+        self.target = 'Case'
+        self.seed = seed
+        self.X, self.y = self.__prepare_data__()
+
+    def __prepare_data__(self):
+        
+        emb_path_trn_mimic = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Training/Train/result/emb_train_new_version.npy'
+        emb_path_vld_mimic = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Training/Train/result/emb_valid_new_version.npy'
+        emb_path_trn_eicu = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Training/Train/result/emb_eicu_new_version.npy'
+
+        mimic_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/mimic_analysis.csv.gz'
+        eicu_path = '/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Case Labeling/eicu_analysis.csv.gz'
+        
+        if self.data_type == 'mimic':
+            stay = 'stay_id'
+            mimic_train_emb, mimic_valid_emb, _ = integrating_embedding.integrating(mimic_path, emb_path_trn_mimic, emb_path_vld_mimic, None, 'mimic')
+            
+        elif self.data_type == 'eicu':
+            stay = 'patientunitstayid'
+            eicu_test_emb, _, _ = integrating_embedding.integrating(eicu_path, emb_path_trn_eicu, None, None, 'eicu')
+        
+        scaler = MinMaxScaler()
+        
+        # if dataset is eicu
+        if self.data_type == 'mimic':
+            
+            self.cat_features = []
+            self.num_features = []
+        
+            for col in mimic_train_emb.columns:
+                if mimic_train_emb[col].nunique() == 2:
+                    self.cat_features.append(col)
+                else:
+                    self.num_features.append(col)
+            
+            if self.mode == "train":
+                X_num = mimic_train_emb[self.num_features].drop(['Case', 'stay_id', 'subject_id','hadm_id','Annotation', 'Unnamed: 0', 'after_shock_annotation'], axis = 1)
+                X_num_scaled = scaler.fit_transform(X_num)
+                
+                X_num = pd.DataFrame(X_num_scaled,columns = X_num.columns)
+                X_cat = mimic_train_emb[self.cat_features].drop(['Shock_next_8h','INDEX'], axis = 1)
+                X = pd.concat([X_num, X_cat], axis = 1)
+                y = mimic_train_emb[self.target]
+                return X, y
+            
+            else:
+                X_num_standard = mimic_train_emb[self.num_features].drop(['Case', 'stay_id', 'subject_id','hadm_id', 'Annotation', 'Unnamed: 0', 'after_shock_annotation'], axis = 1)
+                scaler.fit(X_num_standard)
+                
+                X_num = mimic_valid_emb[self.num_features].drop(['Case', 'stay_id', 'subject_id','hadm_id', 'Annotation', 'Unnamed: 0', 'after_shock_annotation'], axis = 1)
+                X_num_scaled = scaler.transform(X_num)
+                
+                X_num = pd.DataFrame(X_num_scaled,columns = X_num.columns)
+                X_cat = mimic_valid_emb[self.cat_features].drop(['Shock_next_8h','INDEX'], axis = 1)
+                X = pd.concat([X_num, X_cat], axis = 1)
+                y = mimic_valid_emb[self.target]
+                return X, y
+               
+
+        # if dataset is eicu
+        else:
+            mimic_train_emb, _, _ = integrating_embedding.integrating(mimic_path, emb_path_trn_mimic, emb_path_vld_mimic, None, 'mimic')
+            self.cat_features = []
+            self.num_features = []
+        
+            for col in mimic_train_emb.columns:
+                if mimic_train_emb[col].nunique() == 2:
+                    self.cat_features.append(col)
+                else:
+                    self.num_features.append(col)
+                    
+                
+            X_num_standard = mimic_train_emb[self.num_features].drop(['Case', 'stay_id', 'subject_id','hadm_id','Annotation','Unnamed: 0', 'after_shock_annotation'], axis = 1)
+            scaler.fit(X_num_standard)
+            
+            to_remove = ['stay_id', 'subject_id', 'hadm_id', 'Case', 'Annotation']
+
+            for item in to_remove:
+                if item in self.num_features:
+                    self.num_features.remove(item)
+            
+            X_num_standard = eicu_test_emb[self.num_features].drop(['Unnamed: 0', 'after_shock_annotation'], axis = 1)
+            X_num_scaled = scaler.transform(X_num_standard)
+            X_num = pd.DataFrame(X_num_scaled,columns = X_num_standard.columns)
+            X_cat = eicu_test_emb[self.cat_features].drop(['Shock_next_8h','INDEX'], axis = 1)
+            X = pd.concat([X_num, X_cat], axis = 1)
+            y = eicu_test_emb[self.target]
+            return X, y
+
+    def __getitem__(self,index):
+      
+        X_features = torch.tensor(self.X.iloc[index,:].values,dtype=torch.float32)
+        label = torch.tensor(int(self.y.iloc[index]),dtype=torch.float32)
+
+        return X_features, label
     
     def __len__(self):
         return self.y.shape[0]

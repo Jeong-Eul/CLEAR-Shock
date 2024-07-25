@@ -97,17 +97,17 @@ if __name__ == '__main__':
     print(f'Build Dataset : {args.mimic_data_dir} ....')
     dataset_train = TrainingDataset(data_path=args.mimic_data_dir, data_type='mimic',mode='train',seed=args.seed)
     # sample weight
-    y_train_indices = dataset_train.df_num.index
-    y_train = [dataset_train.y[i] for i in y_train_indices]
-    class_sample_count = np.array([len(np.where(y_train == t)[0]) for t in np.unique(y_train)])
+    # y_train_indices = dataset_train.df_num.index
+    # y_train = [dataset_train.y[i] for i in y_train_indices]
+    # class_sample_count = np.array([len(np.where(y_train == t)[0]) for t in np.unique(y_train)])
 
-    weight = 1. / class_sample_count
+    # weight = 1. / class_sample_count
         
-    samples_weight = np.array([weight[int(t)-1] for t in y_train])
-    samples_weight = torch.from_numpy(samples_weight)
-    sampler = WeightedRandomSampler(samples_weight.type('torch.DoubleTensor'), len(samples_weight))
+    # samples_weight = np.array([weight[int(t)-1] for t in y_train])
+    # samples_weight = torch.from_numpy(samples_weight)
+    # sampler = WeightedRandomSampler(samples_weight.type('torch.DoubleTensor'), len(samples_weight))
     
-    loader_train = DataLoader(dataset_train, batch_size=args.batch_size, sampler=sampler, drop_last=True)
+    loader_train = DataLoader(dataset_train, batch_size=args.batch_size, shuffle=True, drop_last=True)
 
     # Tuple Containing the number of unique values within each category
     card_categories = []
@@ -280,7 +280,7 @@ if __name__ == '__main__':
             
         
             
-    elif args.mode == 'Get_Embedding':
+    elif args.mode == 'Inference':
         eicu_train = TableDataset(data_path=args.eicu_data_dir, data_type='eicu',mode='all',seed=args.seed)
         loader_eicu_out = DataLoader(eicu_train, batch_size=args.batch_size, shuffle=False, drop_last=False)
 
@@ -290,17 +290,7 @@ if __name__ == '__main__':
         mimic_valid = TableDataset(data_path=args.mimic_data_dir, data_type='mimic',mode='valid',seed=args.seed)
         loader_val_out = DataLoader(mimic_valid, batch_size=args.batch_size, shuffle=False, drop_last=False)
         
-        # model = FTTransformer(categories=card_categories,
-        # num_continuous=157,
-        # dim=78,
-        # depth=4,
-        # heads=5,
-        # dim_head=52,
-        # num_special_tokens = 2,
-        # attn_dropout=0.4585,
-        # ff_dropout=0.5641).to(device)
-        
-        model = FTTransformer(categories=card_categories,
+        model = BaselineFT(categories=card_categories,
         num_continuous=args.num_cont,
         dim=args.dim,
         depth=args.depth,
@@ -310,187 +300,172 @@ if __name__ == '__main__':
         attn_dropout=args.attn_dropout,
         ff_dropout=args.ff_dropout).to(device)
         
-        checkpoint = torch.load("Contrastive_Embedding_Net_ftt(0313_best_batch=64).pt")
-        model.load_state_dict(checkpoint["model_state_dict"])
-        
-        def make_embeded_df_valid(model_name):
+        checkpoint = torch.load(f'{args.ckpt_dir}/FTT_Baseline_pattern.pth')
+        model.load_state_dict(checkpoint)
     
-            print('Start Getting the latent space vector (Valid sample)')
-            model_name.eval()
-            with torch.no_grad():
-                for idx, batch_data in enumerate(tqdm(loader_val_out)):
-                    X_num, X_cat, _ = batch_data
-                    X_num, X_cat = X_num.to(device), X_cat.to(device)
-                    latent, _ = model_name(X_cat, X_num, True)
 
-                    ## atttnmap -> (depth,b,head,seq,seq)
-                    if not idx:
-                        # cum_attn_map = np.mean(att_valid.detach().cpu().numpy(),axis = 1)
-                        latent_arrays = latent.detach().cpu().numpy()
-                
-                    else:
-                        # cum_attn_map += np.mean(att_valid.detach().cpu().numpy(),axis = 1)
-                        latent_arrays = np.vstack((latent_arrays,latent.detach().cpu().numpy()))
-                
-                np.save('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Cohort_selection/Train/result/emb_valid_new_version(0313).npy',latent_arrays)
-                print(latent_arrays.shape)          
-        
-        def make_embeded_df_train(model_name):
-
-            print('Start Getting the latent space vector (Train sample)')
-            model_name.eval()
-            with torch.no_grad():
-                for idx, batch_data in enumerate(tqdm(loader_trn_out)):
-                    X_num, X_cat, _ = batch_data
-                    X_num, X_cat = X_num.to(device), X_cat.to(device)
-                    latent, _ = model_name(X_cat, X_num, True)
-
-                    ## atttnmap -> (depth,b,head,seq,seq)
-                    if not idx:
-                        latent_arrays = latent.detach().cpu().numpy()
-                
-                    else:
-                        latent_arrays = np.vstack((latent_arrays,latent.detach().cpu().numpy()))
-
-                np.save('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Cohort_selection/Train/result/emb_train_new_version(0313).npy',latent_arrays)
-                print(latent_arrays.shape)         
+        print('Start Getting the Valid Prediction value')
+        model.eval()
+        with torch.no_grad():
+            for idx, batch_data in enumerate(tqdm(loader_val_out)):
+                X_num, X_cat, label = batch_data
+                X_num, X_cat, label = X_num.to(device), X_cat.to(device), label.to(device)
             
-        def make_embeded_df_test(model_name):
-
-            print('Start Getting the latent space vector (Test sample)')
-
-            model_name.eval()
-            with torch.no_grad():
-                for idx, batch_data in enumerate(tqdm(loader_eicu_out)):
-                    X_num, X_cat, _ = batch_data
-                    X_num, X_cat = X_num.to(device), X_cat.to(device)
-                    latent, _ = model_name(X_cat, X_num, True)
-
-                    ## atttnmap -> (depth,b,head,seq,seq)
-                    if not idx:
-                        latent_arrays = latent.detach().cpu().numpy()
+                pred = model(X_cat,X_num,True)
                 
-                    else:
-                        latent_arrays = np.vstack((latent_arrays,latent.detach().cpu().numpy()))
-
+                probabilities = F.softmax(pred, dim=1)
+                predicted_classes = torch.argmax(probabilities, dim=1)
+                predicted_classes = predicted_classes.unsqueeze(1)
                 
-                np.save('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Cohort_selection/Train/result/emb_eicu_new_version(0313).npy',latent_arrays)
-                
-    elif args.mode == 'Get_Feature_Importance':
-
-        model = FTTransformer(categories=card_categories,
-        num_continuous=args.num_cont,
-        dim=args.dim,
-        depth=args.depth,
-        heads=args.heads,
-        dim_head=args.dim_head,
-        num_special_tokens = 2,
-        attn_dropout=args.attn_dropout,
-        ff_dropout=args.ff_dropout).to(device)
+                targets = predicted_classes + 1
+             
+                if not idx:
+                    pred_arrays = targets.detach().cpu().numpy()
+            
+                else:
+                    pred_arrays = np.vstack((pred_arrays,targets.detach().cpu().numpy()))
+            
+            np.save('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Training/Train/result/FTT_inference_valid.npy',pred_arrays)       
         
-        checkpoint = torch.load("Contrastive_Embedding_Net_ftt(0313_best_batch=64).pt")
-        model.load_state_dict(checkpoint["model_state_dict"])
+    
+        print('Start Getting the Test Prediction value')
+        model.eval()
+        with torch.no_grad():
+            for idx, batch_data in enumerate(tqdm(loader_eicu_out)):
+                X_num, X_cat, label = batch_data
+                X_num, X_cat, label = X_num.to(device), X_cat.to(device), label.to(device)
+            
+                pred = model(X_cat,X_num,True)
                 
-        case2 = Positive_Case2(data_path=args.mimic_data_dir, data_type='mimic',mode='valid',seed=args.sees)
-        case2_loader = DataLoader(case2, batch_size=32, shuffle=True, drop_last=False)
+                probabilities = F.softmax(pred, dim=1)
+                predicted_classes = torch.argmax(probabilities, dim=1)
+                predicted_classes = predicted_classes.unsqueeze(1)
+                
+                targets = predicted_classes + 1
 
-        case4 = Positive_Case4(data_path=args.mimic_data_dir, data_type='mimic',mode='valid',seed=args.sees)
-        case4_loader = DataLoader(case4, batch_size=32, shuffle=True, drop_last=False)
+                if not idx:
+                    pred_arrays = targets.detach().cpu().numpy()
+            
+                else:
+                    pred_arrays = np.vstack((pred_arrays,targets.detach().cpu().numpy()))
+
+            np.save('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Training/Train/result/FTT_inference_test.npy',pred_arrays)
+                
+    # elif args.mode == 'Get_Feature_Importance':
+
+    #     model = FTTransformer(categories=card_categories,
+    #     num_continuous=args.num_cont,
+    #     dim=args.dim,
+    #     depth=args.depth,
+    #     heads=args.heads,
+    #     dim_head=args.dim_head,
+    #     num_special_tokens = 2,
+    #     attn_dropout=args.attn_dropout,
+    #     ff_dropout=args.ff_dropout).to(device)
+        
+    #     checkpoint = torch.load("Contrastive_Embedding_Net_ftt(0313_best_batch=64).pt")
+    #     model.load_state_dict(checkpoint["model_state_dict"])
+                
+    #     case2 = Positive_Case2(data_path=args.mimic_data_dir, data_type='mimic',mode='valid',seed=args.sees)
+    #     case2_loader = DataLoader(case2, batch_size=32, shuffle=True, drop_last=False)
+
+    #     case4 = Positive_Case4(data_path=args.mimic_data_dir, data_type='mimic',mode='valid',seed=args.sees)
+    #     case4_loader = DataLoader(case4, batch_size=32, shuffle=True, drop_last=False)
         
         
             
-        def attention_map_case2(model_name, case2_loader, device):
-            print('Start Getting the Attention positive(Case2)')
-            model_name.eval()
-            att_maps = [] 
+    #     def attention_map_case2(model_name, case2_loader, device):
+    #         print('Start Getting the Attention positive(Case2)')
+    #         model_name.eval()
+    #         att_maps = [] 
 
-            with torch.no_grad():
-                for idx, batch_data in enumerate(tqdm(case2_loader)):
-                    X_num, X_cat, label = batch_data
-                    X_num, X_cat = X_num.to(device), X_cat.to(device)
-                    _, att_valid = model_name(X_cat, X_num, True)
+    #         with torch.no_grad():
+    #             for idx, batch_data in enumerate(tqdm(case2_loader)):
+    #                 X_num, X_cat, label = batch_data
+    #                 X_num, X_cat = X_num.to(device), X_cat.to(device)
+    #                 _, att_valid = model_name(X_cat, X_num, True)
 
-                    att_maps.append(att_valid.cpu().numpy()) 
-                final = np.concatenate(att_maps, axis = 1)
+    #                 att_maps.append(att_valid.cpu().numpy()) 
+    #             final = np.concatenate(att_maps, axis = 1)
                 
-            return final
+    #         return final
         
-        def attention_map_case4(model_name, case4_loader, device):
-            print('Start Getting the Attention positive(Case4)')
-            model_name.eval()
-            att_maps = [] 
+    #     def attention_map_case4(model_name, case4_loader, device):
+    #         print('Start Getting the Attention positive(Case4)')
+    #         model_name.eval()
+    #         att_maps = [] 
 
-            with torch.no_grad():
-                for idx, batch_data in enumerate(tqdm(case4_loader)):
-                    X_num, X_cat, label = batch_data
-                    X_num, X_cat = X_num.to(device), X_cat.to(device)
-                    _, att_valid = model_name(X_cat, X_num, True)
+    #         with torch.no_grad():
+    #             for idx, batch_data in enumerate(tqdm(case4_loader)):
+    #                 X_num, X_cat, label = batch_data
+    #                 X_num, X_cat = X_num.to(device), X_cat.to(device)
+    #                 _, att_valid = model_name(X_cat, X_num, True)
 
-                    att_maps.append(att_valid.cpu().numpy())
+    #                 att_maps.append(att_valid.cpu().numpy())
             
-                final = np.concatenate(att_maps, axis = 1)
-            return final
+    #             final = np.concatenate(att_maps, axis = 1)
+    #         return final
         
         
-        case2_attn = attention_map_case2(model, case2_loader, device)
-        case4_attn = attention_map_case4(model, case4_loader, device)
+    #     case2_attn = attention_map_case2(model, case2_loader, device)
+    #     case4_attn = attention_map_case4(model, case4_loader, device)
         
-        att_dict = {1:[], 2:[], 3:[], 4:[]}
+    #     att_dict = {1:[], 2:[], 3:[], 4:[]}
         
-        att_dict[2] = case2_attn
+    #     att_dict[2] = case2_attn
 
-        att_dict[4] = case4_attn
+    #     att_dict[4] = case4_attn
         
-        def softmax(x):
-            e_x = np.exp(x - np.max(x))
-            return e_x / e_x.sum(axis=1, keepdims=True)
+    #     def softmax(x):
+    #         e_x = np.exp(x - np.max(x))
+    #         return e_x / e_x.sum(axis=1, keepdims=True)
 
-        heads = 5
-        layers = 4
+    #     heads = 5
+    #     layers = 4
 
-        columns = ['CLS_Token'] + dataset_train.df_cat.columns.tolist() + dataset_train.df_num.columns.tolist()
-        cls = [2.0, 4.0]
+    #     columns = ['CLS_Token'] + dataset_train.df_cat.columns.tolist() + dataset_train.df_num.columns.tolist()
+    #     cls = [2.0, 4.0]
 
-        valid_indices = [i for i, col in enumerate(columns) if  col != "CLS_Token"]
+    #     valid_indices = [i for i, col in enumerate(columns) if  col != "CLS_Token"]
 
-        for classes in cls:
-            ps = []
-            class_attention_map = att_dict[classes]  # (l, b, h, f, f)
+    #     for classes in cls:
+    #         ps = []
+    #         class_attention_map = att_dict[classes]  # (l, b, h, f, f)
             
-            if classes == 2:
-                sample_len = 196
-            else:
-                sample_len = 763 
+    #         if classes == 2:
+    #             sample_len = 196
+    #         else:
+    #             sample_len = 763 
 
-            for sample in range(sample_len):
-                get_cls_attentionmap = class_attention_map[:, sample, :, 0:1, :]  # (l, h, 1, f), Sample requires 1 sample for each message (layer, head, cls 1, width)
-                sigma = get_cls_attentionmap.sum(axis=0).sum(axis=0) #(1, 227)
-                p = sigma / (heads * layers)
-                ps.append(p)
+    #         for sample in range(sample_len):
+    #             get_cls_attentionmap = class_attention_map[:, sample, :, 0:1, :]  # (l, h, 1, f), Sample requires 1 sample for each message (layer, head, cls 1, width)
+    #             sigma = get_cls_attentionmap.sum(axis=0).sum(axis=0) #(1, 227)
+    #             p = sigma / (heads * layers)
+    #             ps.append(p)
 
-            p = np.array(ps).sum(axis=0) / sample_len * 100 #scaling
+    #         p = np.array(ps).sum(axis=0) / sample_len * 100 #scaling
             
-            if p.ndim == 2 and p.shape[0] == 1:
-                p = p.ravel()
+    #         if p.ndim == 2 and p.shape[0] == 1:
+    #             p = p.ravel()
 
-            p_filtered = p[valid_indices]
-            top_feature_indices = np.argsort(p_filtered)[-20:][::-1]
-            top_p_values = p_filtered[top_feature_indices]
-            top_feature_names = [columns[valid_indices[i]] for i in top_feature_indices]
+    #         p_filtered = p[valid_indices]
+    #         top_feature_indices = np.argsort(p_filtered)[-20:][::-1]
+    #         top_p_values = p_filtered[top_feature_indices]
+    #         top_feature_names = [columns[valid_indices[i]] for i in top_feature_indices]
 
             
-            sorted_indices = np.argsort(top_p_values)[::-1]
-            sorted_p_values = np.array(top_p_values)[sorted_indices]
-            sorted_feature_names = np.array(top_feature_names)[sorted_indices]
+    #         sorted_indices = np.argsort(top_p_values)[::-1]
+    #         sorted_p_values = np.array(top_p_values)[sorted_indices]
+    #         sorted_feature_names = np.array(top_feature_names)[sorted_indices]
             
       
-            bars = plt.barh(range(len(sorted_p_values)), sorted_p_values, color='gray', edgecolor='black')
+    #         bars = plt.barh(range(len(sorted_p_values)), sorted_p_values, color='gray', edgecolor='black')
 
-            plt.yticks(ticks=range(len(sorted_feature_names)), labels=sorted_feature_names, fontsize=12)
-            plt.xlabel('Importance', fontsize=12) 
+    #         plt.yticks(ticks=range(len(sorted_feature_names)), labels=sorted_feature_names, fontsize=12)
+    #         plt.xlabel('Importance', fontsize=12) 
          
-            plt.tight_layout() 
-            plt.gca().invert_yaxis() 
+    #         plt.tight_layout() 
+    #         plt.gca().invert_yaxis() 
 
-            plt.savefig('feature_importance.png')
-            plt.close()
+    #         plt.savefig('feature_importance.png')
+    #         plt.close()

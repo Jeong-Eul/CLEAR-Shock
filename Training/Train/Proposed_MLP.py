@@ -88,7 +88,7 @@ if __name__ == '__main__':
 
     ## Build Dataset 
     print(f'Build Dataset : {args.mimic_data_dir} ....')
-    dataset_train = MLPDataset(data_path=args.mimic_data_dir, data_type='mimic',mode='train',seed=args.seed)
+    dataset_train = MLP_EMB_Dataset(data_path=args.mimic_data_dir, data_type='mimic',mode='train',seed=args.seed)
     # sample weight
     # y_train_indices = dataset_train.X.index
     # y_train = [dataset_train.y[i] for i in y_train_indices]
@@ -196,7 +196,7 @@ if __name__ == '__main__':
                 print(f'Best Loss {Best_valid_loss:.4f} -> {avg_valid_loss:.4f} Update! & Save Checkpoint')
                 Best_valid_loss = avg_valid_loss
                 early_stop_counter = 0
-                torch.save(emb_model.state_dict(),f'{args.ckpt_dir}/MLP_Baseline_pattern.pth')
+                torch.save(emb_model.state_dict(),f'{args.ckpt_dir}/MLP_Baseline_EMB_pattern.pth')
                 
             else:
                 early_stop_counter += 1
@@ -210,7 +210,7 @@ if __name__ == '__main__':
     
     
     if args.mode == "train":
-        dataset_val = MLPDataset(data_path=args.mimic_data_dir, data_type='mimic',mode='valid',seed=args.seed)
+        dataset_val = MLP_EMB_Dataset(data_path=args.mimic_data_dir, data_type='mimic',mode='valid',seed=args.seed)
         loader_val = DataLoader(dataset_val, batch_size=args.batch_size, shuffle=False, drop_last=True)
         
         gc.collect()
@@ -243,18 +243,18 @@ if __name__ == '__main__':
             
     elif args.mode == 'Inference':
         print('Starting Inference Mode')
-        eicu_train = MLPDataset(data_path=args.eicu_data_dir, data_type='eicu',mode='all',seed=args.seed)
+        eicu_train = MLP_EMB_Dataset(data_path=args.eicu_data_dir, data_type='eicu',mode='all',seed=args.seed)
         loader_eicu_out = DataLoader(eicu_train, batch_size=args.batch_size, shuffle=False, drop_last=False)
 
-        mimic_train = MLPDataset(data_path=args.mimic_data_dir, data_type='mimic',mode='train',seed=args.seed)
+        mimic_train = MLP_EMB_Dataset(data_path=args.mimic_data_dir, data_type='mimic',mode='train',seed=args.seed)
         loader_trn_out = DataLoader(mimic_train, batch_size=args.batch_size, shuffle=False, drop_last=False)
 
-        mimic_valid = MLPDataset(data_path=args.mimic_data_dir, data_type='mimic',mode='valid',seed=args.seed)
+        mimic_valid = MLP_EMB_Dataset(data_path=args.mimic_data_dir, data_type='mimic',mode='valid',seed=args.seed)
         loader_val_out = DataLoader(mimic_valid, batch_size=args.batch_size, shuffle=False, drop_last=False)
         
         emb_model = MLP(dim_feat =mimic_train.X.shape[1], drop_rate = args.ff_dropout).to(device)
         
-        checkpoint = torch.load(f'{args.ckpt_dir}/MLP_Baseline_pattern.pth')
+        checkpoint = torch.load(f'{args.ckpt_dir}/MLP_Baseline_EMB_pattern.pth')
         emb_model.load_state_dict(checkpoint)
         
 
@@ -281,7 +281,7 @@ if __name__ == '__main__':
                     pred_arrays = np.vstack((pred_arrays,targets.detach().cpu().numpy()))
                     
             
-            np.save('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Training/Train/result/MLP_inference_valid.npy',pred_arrays)       
+            np.save('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Training/Train/result/MLP_inference_valid_emb.npy',pred_arrays)       
         
     
         print('Start Getting the Test Prediction value')
@@ -305,7 +305,7 @@ if __name__ == '__main__':
                     pred_arrays = np.vstack((pred_arrays,targets.detach().cpu().numpy()))
 
             
-            np.save('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Training/Train/result/MLP_inference_test.npy',pred_arrays)
+            np.save('/Users/DAHS/Desktop/ECP_CONT/ECP_SCL/Training/Train/result/MLP_inference_test_emb.npy',pred_arrays)
                 
     # elif args.mode == 'Get_Feature_Importance':
 
