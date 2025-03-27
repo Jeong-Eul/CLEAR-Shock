@@ -1,5 +1,5 @@
 # CLEAR-Shock: Contrastive LEARning for Shock  
-(Submitted)
+(Early Accepted -> https://ieeexplore.ieee.org/abstract/document/10834563)
 
 <center><img src="https://github.com/Jeong-Eul/CLEAR/blob/main/Figure/fig6.png" width="800" height="500"/>
 
