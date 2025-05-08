@@ -96,5 +96,16 @@ This part includes case predicion, and monitoring system visualization, as shown
 - CLEAR.py: Proposed method experiment(Internal(or External) validation(classification performance, Naive system accuracy, Avergaed cosine index)), Prognositc Monitoring system working process visualization.
 
 
+## Citations  
 
+if you found this repo useful, please consider citing our paper:  
 
+```bibtex
+  @article{kwon2025clear,
+    title={CLEAR-Shock: Contrastive LEARning for Shock},
+    author={Kwon, Jeong Eul and Lee, Sung Woo and Kim, Su Jin and Han, Kap Su and Lee, Sijin and Song, Juhyun and Lee, Hyo Kyung},
+    journal={IEEE Journal of Biomedical and Health Informatics},
+    year={2025},
+    publisher={IEEE}
+  }
+```
