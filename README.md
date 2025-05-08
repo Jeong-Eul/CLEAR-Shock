@@ -14,7 +14,7 @@
 </div>
 
 <p align="center">
-<img src="./figures/Figure2.png" width="800" height="500" alt="" align=center />
+<img src="./Figure/fig1.png" width="1000" height="500" alt="" align=center />
 </p>
 
 ---
@@ -29,10 +29,30 @@ Shock is a life-threatening condition characterized by generalized circulatory f
 
 
 <p align="center">
-<img src="C:\Users\DAHS\Desktop\ECP_CONT\ECP_SCL\Figure\fig6.png" height = "360" alt="" align=center />
+<img src="./Figure/fig6.png" width="800" height="500" alt="" align=center />
 </p>
 
 The schematic diagram illustrates how the prognostic monitoring system works. The first row illustrates the evolution of early prediction scores over time, distinguished before and after shock occurrence. The red shaded area represents shock state and the green shaded area denotes full recovery from shock. The second row displays administration changes in two interventions (fluids and vasopressors) over time. Fluids are scaled between 0 and 1 for the administered amount, while vasopressors are scaled to 0.5 if administered and 0 if not. The third row shows changes in MAP and lactate over time, with trends smoothed for easier identification.
+
+## Results  
+
+Model Performance on Validation and Test Sets.  
+
+| Model    | Set   | Case 1 AUROC ± Std | Case 1 AUPRC ± Std | Case 2 AUROC ± Std | Case 2 AUPRC ± Std | Case 3 AUROC ± Std | Case 3 AUPRC ± Std | Case 4 AUROC ± Std | Case 4 AUPRC ± Std |
+| -------- | ----- | ------------------ | ------------------ | ------------------ | ------------------ | ------------------ | ------------------ | ------------------ | ------------------ |
+| Baseline | Valid | 0.881 ± 0.104      | 0.915 ± 0.058      | 0.763 ± 0.069      | 0.704 ± 0.055      | 0.838 ± 0.102      | 0.824 ± 0.093      | 0.836 ± 0.108      | 0.744 ± 0.181      |
+|          | Test  | 0.713 ± 0.124      | 0.821 ± 0.082      | 0.631 ± 0.071      | 0.424 ± 0.098      | 0.705 ± 0.121      | 0.569 ± 0.187      | 0.746 ± 0.153      | 0.747 ± 0.162      |
+| CLEAR-A  | Valid | 0.883 ± 0.102      | 0.918 ± 0.056      | 0.771 ± 0.071      | 0.705 ± 0.052      | 0.845 ± 0.100      | 0.838 ± 0.089      | 0.851 ± 0.107      | 0.760 ± 0.180      |
+|          | Test  | 0.710 ± 0.116      | 0.830 ± 0.070      | 0.673 ± 0.076      | 0.487 ± 0.093      | 0.717 ± 0.124      | 0.555 ± 0.204      | 0.802 ± 0.140      | 0.773 ± 0.170      |
+| CLEAR-R  | Valid | **0.926 ± 0.041**  | **0.938 ± 0.032**  | **0.794 ± 0.039**  | **0.716 ± 0.051**  | **0.889 ± 0.040**  | **0.867 ± 0.051**  | **0.882 ± 0.069**  | **0.839 ± 0.068**  |
+|          | Test  | **0.743 ± 0.100**  | **0.840 ± 0.067**  | **0.701 ± 0.051**  | **0.511 ± 0.054**  | **0.766 ± 0.087**  | **0.596 ± 0.164**  | **0.846 ± 0.104**  | **0.841 ± 0.100**  |
+
+
+
+<p align="center">
+<img src="./Figure/fig2.png" width="1200" height="300" alt="" align=center />
+</p>
+
 
 ## Requirements
 Use python 3.9 from Anaconda
@@ -65,14 +85,16 @@ You can access the MIMIC-IV from [[MIMIC-IV]](https://physionet.org/content/mimi
 3. Annotation, Labeling, Preprocessing for analysis is available through Case.py.  
 4. The final preprocessed datasets are saved in csv format through main_case.py.  
 
-[Training]  
-- main.py: Training(Optuna), Get Embedding, Get Feature Importance from Self Attention map.  
-- main.sh: Script that can run the above three modes.  
+## Training  
+1. main.py: Training(Optuna), Get Embedding, Get Feature Importance from Self Attention map.  
+2. main.sh: Script that can run the above three modes.  
 
-[Experiment]  
+## Experiment  
+
 This part includes case predicion, and monitoring system visualization, as shown in the Discussion section.  
 - Baseline.py: Baseline experiment(Internal(or External) validation(classification performance, Naive system accuracy, Avergaed cosine index)).  
-- CLEAR.py: Proposed method experiment(Internal(or External) validation(classification performance, Naive system accuracy, Avergaed cosine index)), Prognositc Monitoring system working process visualization.  
+- CLEAR.py: Proposed method experiment(Internal(or External) validation(classification performance, Naive system accuracy, Avergaed cosine index)), Prognositc Monitoring system working process visualization.
+
 
 
 
